@@ -2,11 +2,10 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>廠區消防安全巡檢規劃系統 - 行動 QR 行動巡檢版</title>
+    <title>廠區消防安全巡檢規劃系統 - 網路自動載入版</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
         :root { --primary: #e74c3c; --success: #27ae60; --warning: #e67e22; --dark: #2c3e50; --ext-scale: 1.0; }
         * { box-sizing: border-box; }
@@ -25,7 +24,6 @@
         .btn-add-hyd { background: #d35400; color: white; border: 2px solid #fff; }
         .btn-add-hyd.active { background: #fff; color: #d35400; box-shadow: 0 0 15px #d35400; }
         
-        .btn-dashboard { background: #16a085; color: white; box-shadow: 0 4px 6px rgba(22,160,133,0.3); }
         .btn-jpg { background: #2ecc71; color: white; font-weight: bold; box-shadow: 0 4px 6px rgba(46,204,113,0.3); }
         .btn-pdf { background: #e67e22; color: white; font-weight: bold; box-shadow: 0 4px 6px rgba(230,126,34,0.3); }
         .btn-excel { background: #3498db; color: white; }
@@ -55,7 +53,6 @@
             font-size: 11px; font-weight: bold; white-space: nowrap; box-shadow: 0 2px 4px rgba(0,0,0,0.2);
             z-index: 10000;
         }
-        .status-uninspected { background: #7f8c8d; color: white; border: 1px solid white; }
         .status-ok { background: var(--success); color: white; border: 1px solid white; }
         .status-warning { background: var(--warning); color: white; border: 1px solid white; }
         .status-fail { background: #000; color: #ff3f34; border: 1px solid #ff3f34; }
@@ -69,11 +66,8 @@
 
         /* 彈窗 */
         .overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 20000; }
-        #modal, #dashboard-modal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); 
-                 background: white; border-radius: 12px; padding: 20px; z-index: 20001; width: 400px; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.3); }
-        
-        /* 側邊或大寬度儀表板 */
-        #dashboard-modal { width: 500px; }
+        #modal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); 
+                 background: white; border-radius: 12px; padding: 20px; z-index: 20001; width: 380px; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.3); }
         
         .check-row { border-bottom: 1px solid #eee; padding: 8px 0; }
         .check-header { display: flex; justify-content: space-between; align-items: center; }
@@ -88,33 +82,18 @@
         .hose-date-container { background: #eef2f7; padding: 8px; border-radius: 6px; margin-top: 5px; display: flex; flex-direction: column; gap: 5px; }
         .hose-date-item { display: flex; align-items: center; justify-content: space-between; font-size: 13px; }
         .hose-date-item input { width: 60% !important; }
-
-        /* QR Code 顯示區 */
-        .qr-section { display: flex; flex-direction: column; align-items: center; margin-top: 15px; padding-top: 15px; border-top: 2px dashed #ddd; }
-        #qr-code-canvas { margin: 10px 0; }
-
-        /* 儀表板樣式 */
-        .dash-summary { display: flex; justify-content: space-between; margin-bottom: 20px; }
-        .dash-card { flex: 1; text-align: center; padding: 10px; margin: 0 5px; border-radius: 8px; color: white; font-weight: bold; }
-        .card-total { background: #34495e; }
-        .card-ok { background: #27ae60; }
-        .card-fail { background: #c0392b; }
-        .card-wait { background: #7f8c8d; }
-        .list-group-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border-bottom: 1px solid #eee; font-size: 14px; }
-        .list-group-item:hover { background: #f8f9fa; cursor: pointer; }
     </style>
 </head>
 <body>
 
 <div id="toolbar">
-    <div style="font-size: 1.1em; font-weight: bold;">🚒 廠區消防安全巡檢系統 (行動巡檢版)</div>
+    <div style="font-size: 1.1em; font-weight: bold;">🚒 廠區消防安全巡檢規劃系統</div>
     
     <label class="btn btn-project-load">📂 1. 開啟巡檢專案檔 (.json)<input type="file" id="load-project" accept=".json" style="display:none;"></label>
     <label class="btn btn-upload">📁 新建圖面 (PDF/圖檔)<input type="file" id="upload" accept="application/pdf, image/*" style="display:none;"></label>
     
     <button class="btn btn-add-ext" id="add-ext-btn" onclick="toggleAddMode('ext')">🧯 新增滅火器</button>
     <button class="btn btn-add-hyd" id="add-hyd-btn" onclick="toggleAddMode('hyd')">🏠 新增室內消防栓箱</button>
-    <button class="btn btn-dashboard" onclick="openDashboard()">📊 巡檢總覽儀表板</button>
     <button class="btn btn-project-save" onclick="exportProjectJSON()">💾 3. 另存巡檢專案檔</button>
     
     <button class="btn btn-jpg" onclick="exportJPG()">🖼️ 輸出高畫質 JPG</button>
@@ -138,7 +117,7 @@
     </div>
 </div>
 
-<div class="overlay" id="overlay" onclick="closeAllModals()"></div>
+<div class="overlay" id="overlay" onclick="closeModal()"></div>
 
 <div id="modal">
     <h3 id="modal-title" style="margin-top:0; color:var(--dark);">設備基本資料</h3>
@@ -175,31 +154,8 @@
     
     <div id="check-list-area"></div>
 
-    <div class="qr-section">
-        <span style="font-weight: bold; font-size: 13px; color: #555;">📱 專屬行動巡檢 QR Code (可手機拍照/列印貼在現場)</span>
-        <div id="qr-code-canvas"></div>
-    </div>
-
     <button class="save-btn" onclick="saveCheck()">儲存巡檢紀錄</button>
     <button onclick="deletePoint()" style="width:100%; margin-top:10px; background:none; border:none; color:#ae1c1c; cursor:pointer; font-weight:bold;">✕ 刪除此點位</button>
-</div>
-
-<div id="dashboard-modal">
-    <h3 style="margin-top:0; color:var(--dark); display: flex; justify-content: space-between;">
-        <span>📊 廠區每月巡檢進度追蹤</span>
-        <button onclick="resetMonthlyInspection()" style="font-size:12px; background:#e67e22; color:white; border:none; padding:4px 8px; border-radius:4px; cursor:pointer;">🔄 重置本月巡檢</button>
-    </h3>
-    <div class="dash-summary">
-        <div class="dash-card card-total">總數<br><span id="dash-total">0</span></div>
-        <div class="dash-card card-ok">合格<br><span id="dash-ok">0</span></div>
-        <div class="dash-card card-fail">不合格<br><span id="dash-fail">0</span></div>
-        <div class="dash-card card-wait">未巡檢<br><span id="dash-wait">0</span></div>
-    </div>
-    
-    <h4 style="margin-bottom:8px; border-bottom: 2px solid var(--dark); padding-bottom: 4px;">⚠️ 尚未巡檢或異常清單 (點擊可快速定位)</h4>
-    <div id="dash-list" style="max-height: 250px; overflow-y: auto; background: #f8f9fa; border-radius: 6px;"></div>
-    
-    <button class="save-btn" style="background:#7f8c8d;" onclick="closeAllModals()">關閉儀表板</button>
 </div>
 
 <script>
@@ -216,7 +172,6 @@
 
     let mapScale = 1, mapX = 0, mapY = 0;
     let isPanning = false, startX, startY;
-    let qrGenerator = null;
 
     const viewport = document.getElementById('viewport');
     const container = document.getElementById('pan-zoom-container');
@@ -263,6 +218,7 @@
         <rect x="95" y="115" width="5" height="10" fill="#990000"/>
     </svg>`;
 
+    // 🚀【核心升級】：一開啟網頁，先自動去抓同目錄下的 project.json
     window.onload = () => {
         initDefaultCanvas();
         if(localStorage.getItem('icon_scale_v12')) {
@@ -272,8 +228,51 @@
         }
         updateTransform();
         
-        // 檢查網址參數，看是否是由手機掃描 QR 帶入特定 ID 點位
-        checkUrlParamsForCheck();
+        showStatus("⏳ 正在從伺服器載入廠區基本資料...");
+        fetch('project.json')
+            .then(response => {
+                if (!response.ok) { throw new Error('找不到預設的 project.json 檔案'); }
+                return response.json();
+            })
+            .then(bundle => {
+                if (bundle.mapImage) {
+                    currentMapDataUrl = bundle.mapImage;
+                    canvas.width = bundle.canvasW; canvas.height = bundle.canvasH;
+                    canvas.style.width = bundle.canvasStyleW; canvas.style.height = bundle.canvasStyleH;
+
+                    const img = new Image();
+                    img.onload = function() {
+                        ctx.clearRect(0, 0, canvas.width, canvas.height); 
+                        ctx.drawImage(img, 0, 0);
+                        
+                        // 優先讀取本地已巡檢快取，防止打勾紀錄因重開分頁消失
+                        let localCache = localStorage.getItem('current_ehs_project');
+                        if (localCache) {
+                            try {
+                                let localBundle = JSON.parse(localCache);
+                                if(localBundle.savedPoints && localBundle.savedPoints.length === bundle.savedPoints.length) {
+                                    points = localBundle.savedPoints;
+                                } else { points = bundle.savedPoints; }
+                            } catch(e) { points = bundle.savedPoints; }
+                        } else { points = bundle.savedPoints; }
+
+                        evaluateAllPointsExpiry();
+                        renderPoints();
+                        showStatus("✅ 廠區圖面與消防點位已自動加載！");
+                        checkUrlParamsForCheck();
+                    };
+                    img.src = bundle.mapImage;
+                }
+            })
+            .catch(err => {
+                console.log(err.message);
+                showStatus("⚠️ 未偵測到網路專案檔，改從本機瀏覽器讀取。");
+                if (localStorage.getItem('current_ehs_project')) {
+                    restoreProjectFromDataStr(localStorage.getItem('current_ehs_project'), () => {
+                        checkUrlParamsForCheck();
+                    });
+                }
+            });
     };
 
     function initDefaultCanvas() {
@@ -281,48 +280,26 @@
         canvas.style.width = "1100px"; canvas.style.height = "650px";
         ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.fillStyle = "#2c3e50"; ctx.font = "bold 22px sans-serif"; ctx.textAlign = "center";
-        ctx.fillText("歡迎使用！請開啟或還原您的巡檢專案檔 (.json)", canvas.width / 2, canvas.height / 2);
+        ctx.fillText("歡迎使用！請還原您的巡檢專案檔 (.json)", canvas.width / 2, canvas.height / 2);
     }
 
-    // 檢查網址是否有特定點位代碼
-    function checkUrlParamsForCheck() {
-        const urlParams = new URLSearchParams(window.location.search);
-        const pointId = urlParams.get('pointId');
-        
-        // 從瀏覽器快取嘗試還原當前專案資料 (方便現場手機直接操作)
-        if (localStorage.getItem('current_ehs_project')) {
-            restoreProjectFromDataStr(localStorage.getItem('current_ehs_project'), () => {
-                if (pointId) {
-                    const target = points.find(p => p.id == pointId);
-                    if (target) {
-                        // 稍微延遲等畫面載入後，直接自動彈出該點位巡檢窗
-                        setTimeout(() => { openModal(target); focusOnPoint(target); }, 600);
-                    }
-                }
-            });
-        }
-    }
-
-    function restoreProjectFromDataStr(jsonString, callback) {
+    function restoreProjectFromDataStr(dataStr, callback) {
         try {
-            const bundle = JSON.parse(jsonString);
+            const bundle = JSON.parse(dataStr);
             if (bundle.mapImage) {
                 currentMapDataUrl = bundle.mapImage;
                 canvas.width = bundle.canvasW; canvas.height = bundle.canvasH;
                 canvas.style.width = bundle.canvasStyleW; canvas.style.height = bundle.canvasStyleH;
-
                 const img = new Image();
                 img.onload = function() {
                     ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.drawImage(img, 0, 0);
                     points = bundle.savedPoints || [];
-                    evaluateAllPointsExpiry();
-                    mapScale = 1; mapX = 0; mapY = 0; updateTransform();
-                    renderPoints();
-                    if (callback) callback();
+                    evaluateAllPointsExpiry(); renderPoints();
+                    if(callback) callback();
                 };
                 img.src = bundle.mapImage;
             }
-        } catch (err) { console.error("自動恢復暫存專案失敗"); }
+        } catch(e) { console.error(e); }
     }
 
     // 載入新底圖
@@ -342,7 +319,7 @@
                         const renderContext = { canvasContext: ctx, viewport: viewportPage };
                         page.render(renderContext).promise.then(() => {
                             currentMapDataUrl = canvas.toDataURL('image/jpeg', 0.8);
-                            points = []; renderPoints(); saveToLocalStorageCache(); showStatus("✅ PDF 底圖載入完成");
+                            points = []; renderPoints(); showStatus("✅ PDF 底圖載入完成");
                         });
                     });
                 });
@@ -356,7 +333,7 @@
                     canvas.width = img.width; canvas.height = img.height;
                     canvas.style.width = img.width + "px"; canvas.style.height = img.height + "px";
                     ctx.drawImage(img, 0, 0); currentMapDataUrl = canvas.toDataURL('image/jpeg', 0.8);
-                    points = []; renderPoints(); saveToLocalStorageCache(); showStatus("✅ 圖檔載入完成");
+                    points = []; renderPoints(); showStatus("✅ 圖檔載入完成");
                 };
                 img.src = event.target.result;
             };
@@ -366,34 +343,20 @@
 
     function exportProjectJSON() {
         if (!currentMapDataUrl) { alert("無圖面無法儲存！"); return; }
-        let defaultName = "廠區整合巡檢專案_" + new Date().toISOString().slice(0,10).replace(/-/g,"");
-        let userFileName = prompt("請輸入專案儲存名稱：", defaultName);
+        let defaultName = "project"; // 固定命名為 project 方便網路託管
+        let userFileName = prompt("請確認專案儲存名稱（若要託管至 GitHub，請維持 project）：", defaultName);
         if (!userFileName) return;
 
-        const bundleProject = getProjectBundleObject();
-        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(bundleProject));
-        const downloadAnchor = document.createElement('a');
-        downloadAnchor.setAttribute("href", dataStr); downloadAnchor.setAttribute("download", userFileName.trim() + ".json");
-        document.body.appendChild(downloadAnchor); downloadAnchor.click(); downloadAnchor.remove();
-    }
-
-    function getProjectBundleObject() {
-        return {
+        const bundleProject = {
             mapImage: currentMapDataUrl,
             canvasStyleW: canvas.style.width, canvasStyleH: canvas.style.height,
             canvasW: canvas.width, canvasH: canvas.height,
             savedPoints: points
         };
-    }
-
-    function saveToLocalStorageCache() {
-        if (!currentMapDataUrl) return;
-        try {
-            const bundle = getProjectBundleObject();
-            localStorage.setItem('current_ehs_project', JSON.stringify(bundle));
-        } catch (e) {
-            console.warn("專案檔案過大，超出 LocalStorage 暫存上限，建議定時手動另存 JSON 專案檔。");
-        }
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(bundleProject));
+        const downloadAnchor = document.createElement('a');
+        downloadAnchor.setAttribute("href", dataStr); downloadAnchor.setAttribute("download", userFileName.trim() + ".json");
+        document.body.appendChild(downloadAnchor); downloadAnchor.click(); downloadAnchor.remove();
     }
 
     document.getElementById('load-project').onchange = function(e) {
@@ -401,10 +364,12 @@
         showStatus("⏳ 正在還原專案點位圖層...");
         const reader = new FileReader();
         reader.onload = function(evt) {
-            restoreProjectFromDataStr(evt.target.result, () => {
-                saveToLocalStorageCache();
-                showStatus("📂 專案完全復原！共有 " + points.length + " 個定位標示點");
-            });
+            try {
+                restoreProjectFromDataStr(evt.target.result, () => {
+                    localStorage.setItem('current_ehs_project', evt.target.result);
+                    showStatus("📂 專案完全復原！共有 " + points.length + " 個定位標示點");
+                });
+            } catch (err) { alert("讀取失敗，請確認檔案格式。"); }
         };
         reader.readAsText(file);
     };
@@ -459,7 +424,8 @@
         document.getElementById('add-ext-btn').classList.remove('active');
         document.getElementById('add-hyd-btn').classList.remove('active');
         viewport.classList.remove('add-mode-active');
-        evaluateAllPointsExpiry(); renderPoints(); saveToLocalStorageCache();
+        evaluateAllPointsExpiry(); renderPoints();
+        saveToLocalCache();
     };
 
     function renderPoints() {
@@ -478,7 +444,6 @@
                 let expiry = calculateExpiryStatus(p.mfgDate, 3);
                 if (expiry.status === 'expired') statusHTML = `<div class="status-badge status-fail">【滅火器過期】</div>`;
                 else if (p.inspected) statusHTML = p.done ? `<div class="status-badge status-ok">【合格】</div>` : `<div class="status-badge status-fail">【不合格】</div>`;
-                else statusHTML = `<div class="status-badge status-uninspected">【未巡檢】</div>`;
                 wrapper.innerHTML = `${statusHTML}${extSvgString}<div class="info-label">${p.name}<br>${p.type}</div>`;
             } else {
                 let hasExpiredHose = false;
@@ -489,7 +454,6 @@
                 }
                 if (hasExpiredHose) statusHTML = `<div class="status-badge status-fail">【水帶逾期】</div>`;
                 else if (p.inspected) statusHTML = p.done ? `<div class="status-badge status-ok">【合格】</div>` : `<div class="status-badge status-fail">【不合格】</div>`;
-                else statusHTML = `<div class="status-badge status-uninspected">【未巡檢】</div>`;
                 
                 wrapper.innerHTML = `${statusHTML}${hydSvgString}<div class="info-label" style="background:rgba(186, 22, 22, 0.95); border:1px solid #ff7979;">${p.name}<br>水帶:${p.hoseCount}條</div>`;
             }
@@ -510,7 +474,7 @@
                 document.addEventListener('mousemove', onMouseMove);
                 document.onmouseup = function() {
                     document.removeEventListener('mousemove', onMouseMove);
-                    if(!isDraggingIcon) openModal(p); else { renderPoints(); saveToLocalStorageCache(); }
+                    if(!isDraggingIcon) openModal(p); else { renderPoints(); saveToLocalCache(); }
                     document.onmouseup = null; setTimeout(() => isDraggingIcon = false, 80);
                 };
             };
@@ -558,21 +522,6 @@
             generateHoseDateInputs();
             hydCheckItems.forEach((item, idx) => { addCheckRow(listArea, item, idx+1, p); });
         }
-
-        // 動態產出專屬此消防設施的 QR Code 網址
-        const cleanUrl = window.location.href.split('?')[0];
-        const qrUrl = `${cleanUrl}?pointId=${p.id}`;
-        
-        document.getElementById('qr-code-canvas').innerHTML = "";
-        qrGenerator = new QRCode(document.getElementById('qr-code-canvas'), {
-            text: qrUrl,
-            width: 128,
-            height: 128,
-            colorDark : "#000000",
-            colorLight : "#ffffff",
-            correctLevel : QRCode.CorrectLevel.H
-        });
-
         document.getElementById('modal').style.display = 'block'; document.getElementById('overlay').style.display = 'block';
     }
 
@@ -633,7 +582,18 @@
         }
 
         currentPoint.inspected = anyMarked; currentPoint.done = allOk;
-        closeAllModals();
+        closeModal();
+        saveToLocalCache();
+    }
+
+    function saveToLocalCache() {
+        const bundleProject = {
+            mapImage: currentMapDataUrl,
+            canvasStyleW: canvas.style.width, canvasStyleH: canvas.style.height,
+            canvasW: canvas.width, canvasH: canvas.height,
+            savedPoints: points
+        };
+        localStorage.setItem('current_ehs_project', JSON.stringify(bundleProject));
     }
 
     function calculateExpiryStatus(dateString, yearsLimit) {
@@ -672,90 +632,39 @@
         const msgDiv = document.getElementById('modal-expiry-msg');
         const oBtn = document.getElementById('auto-expiry-o'); const xBtn = document.getElementById('auto-expiry-x');
         const noteInput = document.getElementById('auto-expiry-note'); if(!oBtn) return;
-        oBtn.classList.remove('active-o'); xBtn.classList.add('active-x'); noteInput.style.display = 'none';
+        oBtn.classList.remove('active-o'); xBtn.classList.remove('active-x'); noteInput.style.display = 'none';
         if (!dateVal) return;
         const res = calculateExpiryStatus(dateVal, 3);
         if (res.status === 'expired') {
             msgDiv.innerText = "❌ 已超過 3 年時效！"; msgDiv.style.color = "#e74c3c";
             xBtn.classList.add('active-x'); noteInput.style.display = 'block'; noteInput.value = "自動判定：已過3年法定年限";
-        } else { msgDiv.innerText = " 效期安全"; msgDiv.style.color = "#27ae60"; oBtn.classList.add('active-o'); xBtn.classList.remove('active-x'); }
+        } else { msgDiv.innerText = " 效期安全"; msgDiv.style.color = "#27ae60"; oBtn.classList.add('active-o'); }
     }
 
-    // 儀表板控制與進度查看功能
-    function openDashboard() {
-        document.getElementById('dashboard-modal').style.display = 'block';
-        document.getElementById('overlay').style.display = 'block';
-        
-        let total = points.length;
-        let okCount = points.filter(p => p.inspected && p.done).length;
-        let failCount = points.filter(p => p.inspected && !p.done).length;
-        let waitCount = points.filter(p => !p.inspected).length;
-        
-        document.getElementById('dash-total').innerText = total;
-        document.getElementById('dash-ok').innerText = okCount;
-        document.getElementById('dash-fail').innerText = failCount;
-        document.getElementById('dash-wait').innerText = waitCount;
-        
-        const listContainer = document.getElementById('dash-list');
-        listContainer.innerHTML = "";
-        
-        if(points.length === 0) {
-            listContainer.innerHTML = `<div style="padding:15px; text-align:center; color:#7f8c8d;">尚無任何消防設施點位</div>`;
-            return;
-        }
-        
-        // 列出尚未巡檢或異常的點位提供點擊跳轉
-        points.forEach(p => {
-            let statusText = "未巡檢";
-            let color = "#7f8c8d";
-            if (p.inspected) {
-                statusText = p.done ? "合格" : "不合格(有異常/逾期)";
-                color = p.done ? "#27ae60" : "#c0392b";
+    // 🎯 檢查網址參數並定位彈窗 (QR Code 連動)
+    function checkUrlParamsForCheck() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const pointId = urlParams.get('pointId');
+        if (pointId && points.length > 0) {
+            const target = points.find(p => p.id == pointId);
+            if (target) {
+                // 自動平移聚焦，並彈出該設施巡檢窗
+                setTimeout(() => { openModal(target); focusOnPoint(target); }, 600);
+            } else {
+                alert("⚠️ 找不到該 QR Code 對應的消防設施，請確認專案檔是否為最新版本。");
             }
-            
-            // 如果你只想看「需要注意」的（未巡檢或不合格），可以用條件過濾，這裡預設全部列出方便隨時查看
-            const item = document.createElement('div');
-            item.className = 'list-group-item';
-            item.innerHTML = `<span><strong>${p.name}</strong> (${p.kind === 'ext' ? '滅火器' : '消防栓'})</span>
-                              <span style="color:${color}; font-weight:bold;">${statusText} 🔍</span>`;
-            
-            item.onclick = () => {
-                closeAllModals();
-                focusOnPoint(p);
-                openModal(p);
-            };
-            listContainer.appendChild(item);
-        });
+        }
     }
 
-    // 地圖平移並聚焦到指定點位
+    // 聚焦定位畫面中央
     function focusOnPoint(p) {
         const canvasW = parseFloat(canvas.style.width) || canvas.width;
         const canvasH = parseFloat(canvas.style.height) || canvas.height;
-        const targetX = p.pctX * canvasW;
-        const targetY = p.pctY * canvasH;
-        
-        mapScale = 1.5; // 放大到 150% 清楚看見點位
-        mapX = (viewport.clientWidth / 2) - (targetX * mapScale);
-        mapY = (viewport.clientHeight / 2) - (targetY * mapScale);
+        const pX = p.pctX * canvasW; const pY = p.pctY * canvasH;
+        mapScale = 1.5; 
+        mapX = (viewport.clientWidth / 2) - (pX * mapScale);
+        mapY = (viewport.clientHeight / 2) - (pY * mapScale);
         updateTransform();
-    }
-
-    // 每月巡檢清空重置（保留基礎設施資料，僅清空本月勾選狀態）
-    function resetMonthlyInspection() {
-        if(confirm('確定要重置本月巡檢紀錄嗎？這會將所有點位的「合格/不合格狀態」清空，以便開始新月份的巡檢。')) {
-            points.forEach(p => {
-                p.inspected = false;
-                p.done = false;
-                p.results = {};
-                p.notes = {};
-            });
-            evaluateAllPointsExpiry();
-            renderPoints();
-            saveToLocalStorageCache();
-            openDashboard();
-            showStatus("🔄 已重置本月巡檢狀態，請開始新一輪巡檢");
-        }
     }
 
     viewport.oncontextmenu = (e) => e.preventDefault(); 
@@ -773,67 +682,32 @@
     function setOX(btn, status) { const row = btn.closest('.check-row'); row.querySelectorAll('button').forEach(b => b.classList.remove('active-o', 'active-x')); btn.classList.add(status === 'O' ? 'active-o' : 'active-x'); row.querySelector('.fail-input').style.display = (status === 'X') ? 'block' : 'none'; }
     function showStatus(text) { statusTxt.innerText = text; }
 
-    function closeAllModals() { 
-        document.getElementById('modal').style.display='none'; 
-        document.getElementById('dashboard-modal').style.display='none'; 
-        document.getElementById('overlay').style.display='none'; 
-        evaluateAllPointsExpiry(); 
-        renderPoints(); 
-        saveToLocalStorageCache();
-    }
-
-    function deletePoint() { if(confirm('確定要刪除此標示？')) { points = points.filter(p => p.id !== currentPoint.id); closeAllModals(); } }
-
-    // 高解析度導出 JPG
     function exportJPG() {
         showStatus("⏳ 正在產生超高解析度 JPG 圖面...");
         const oldScale = mapScale, oldX = mapX, oldY = mapY; 
-        mapScale = 1; mapX = 0; mapY = 0; updateTransform(); 
-        
+        mapScale = 1; mapX = 0; mapY = 0; updateTransform();
         setTimeout(() => {
-            html2canvas(document.getElementById('capture-area'), { 
-                useCORS: true, 
-                scale: 4, 
-                logging: false,
-                imageTimeout: 0,
-                backgroundColor: "#ffffff"
-            }).then(canvasRes => {
-                const link = document.createElement('a'); 
-                link.download = '綜合消防設施巡檢圖_高解析.jpg';
-                link.href = canvasRes.toDataURL('image/jpeg', 0.95); 
-                link.click();
-                mapScale = oldScale; mapX = oldX; mapY = oldY; updateTransform(); 
-                showStatus("✅ 高解析度 JPG 導出成功！");
-            }).catch(err => {
-                alert("高解析度渲染失敗。");
+            html2canvas(document.getElementById('capture-area'), { useCORS: true, scale: 4, logging: false, imageTimeout: 0, backgroundColor: "#ffffff" }).then(canvasRes => {
+                const link = document.createElement('a'); link.download = '綜合消防設施巡檢圖_高解析.jpg'; link.href = canvasRes.toDataURL('image/jpeg', 0.95); link.click();
                 mapScale = oldScale; mapX = oldX; mapY = oldY; updateTransform();
-            });
+                showStatus("✅ 高解析度 JPG 導出成功！");
+            }).catch(err => { alert("高解析度渲染失敗。"); mapScale = oldScale; mapX = oldX; mapY = oldY; updateTransform(); });
         }, 400);
     }
 
-    // 高解析度導出 PDF
     function exportPDF() {
         showStatus("⏳ 正在封裝超高解析度 PDF...");
         const oldScale = mapScale, oldX = mapX, oldY = mapY; 
         mapScale = 1; mapX = 0; mapY = 0; updateTransform();
-        
         setTimeout(() => {
-            html2canvas(document.getElementById('capture-area'), { 
-                useCORS: true, 
-                scale: 4, 
-                logging: false,
-                imageTimeout: 0
-            }).then(canvasRes => {
+            html2canvas(document.getElementById('capture-area'), { useCORS: true, scale: 4, logging: false, imageTimeout: 0 }).then(canvasRes => {
                 const { jsPDF } = window.jspdf;
                 const pdf = new jsPDF('l', 'px', [canvasRes.width / 4, canvasRes.height / 4]);
                 pdf.addImage(canvasRes.toDataURL('image/png'), 'PNG', 0, 0, canvasRes.width / 4, canvasRes.height / 4, undefined, 'FAST');
                 pdf.save("綜合消防設施巡檢圖_超高解析.pdf");
                 mapScale = oldScale; mapX = oldX; mapY = oldY; updateTransform();
                 showStatus("✅ 高解析度 PDF 導出成功！");
-            }).catch(err => {
-                alert("高解析度 PDF 建立失敗。");
-                mapScale = oldScale; mapX = oldX; mapY = oldY; updateTransform();
-            });
+            }).catch(err => { alert("高解析度 PDF 建立失敗。"); mapScale = oldScale; mapX = oldX; mapY = oldY; updateTransform(); });
         }, 400);
     }
 
@@ -850,6 +724,9 @@
         const blob = new Blob([csv], {type: 'text/csv'}); const a = document.createElement('a');
         a.href = URL.createObjectURL(blob); a.download = '廠區綜合消防巡檢紀錄報表.csv'; a.click();
     }
+
+    function deletePoint() { if(confirm('確定要刪除此標示？')) { points = points.filter(p => p.id !== currentPoint.id); closeModal(); } }
+    function closeModal() { document.getElementById('modal').style.display='none'; document.getElementById('overlay').style.display='none'; evaluateAllPointsExpiry(); renderPoints(); }
 </script>
 </body>
 </html>
