@@ -3,13 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>廠區消防安全巡檢規劃系統 - 行動升級版</title>
+    <title>廠區消防安全巡檢規劃系統 - 高解析QR歷史完美整合版</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
         :root { --primary: #e74c3c; --success: #27ae60; --warning: #e67e22; --dark: #2c3e50; --ext-scale: 1.0; }
-        * { box-sizing: border-box; touch-action: manipulation; } /* 阻止預設雙擊放大 */
+        * { box-sizing: border-box; touch-action: manipulation; }
         body { font-family: "Microsoft JhengHei", sans-serif; margin: 0; background: #f0f2f5; display: flex; flex-direction: column; height: 100vh; overflow: hidden; user-select: none; -webkit-user-select: none; }
         
         /* 工具列 */
@@ -28,6 +29,7 @@
         .btn-jpg { background: #2ecc71; color: white; font-weight: bold; box-shadow: 0 4px 6px rgba(46,204,113,0.3); }
         .btn-pdf { background: #e67e22; color: white; font-weight: bold; box-shadow: 0 4px 6px rgba(230,126,34,0.3); }
         .btn-excel { background: #3498db; color: white; }
+        .btn-print-qr { background: #ffffff; color: #333; border: 2px solid #333; font-weight: bold; }
         
         .range-container { display: flex; align-items: center; gap: 8px; font-size: 14px; background: rgba(255,255,255,0.1); padding: 5px 10px; border-radius: 4px; }
         #save-status { font-size: 13px; color: #2ecc71; font-weight: bold; margin-left: auto; display: inline-flex; align-items: center; gap: 4px; }
@@ -45,8 +47,7 @@
         .ext-wrapper { 
             position: absolute; cursor: move; display: flex; flex-direction: column; align-items: center; 
             transform: translate(-50%, -85%) scale(var(--ext-scale)); z-index: 9999; transform-origin: center bottom;
-            pointer-events: auto;
-            touch-action: none; /* 阻止行動端預設拖曳行為 */
+            pointer-events: auto; touch-action: none;
         }
         .ext-svg-icon { width: 38px; height: 55px; filter: drop-shadow(0px 3px 5px rgba(0,0,0,0.4)); }
         
@@ -66,14 +67,14 @@
             border: 1px solid rgba(255,255,255,0.1);
         }
 
-        /* 彈窗優化 - 更適合手機操作 */
+        /* 彈窗樣式 */
         .overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 20000; }
         #modal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); 
-                 background: white; border-radius: 12px; padding: 20px; z-index: 20001; width: 90%; max-width: 400px; max-height: 85vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.3); }
+                 background: white; border-radius: 12px; padding: 20px; z-index: 20001; width: 92%; max-width: 420px; max-height: 85vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.3); }
         
-        .check-row { border-bottom: 1px solid #eee; padding: 12px 0; } /* 加大間距方便手指點擊 */
+        .check-row { border-bottom: 1px solid #eee; padding: 10px 0; }
         .check-header { display: flex; justify-content: space-between; align-items: center; }
-        .ox-group button { width: 50px; height: 38px; border: 1px solid #ccc; cursor: pointer; background: #eee; font-weight: bold; font-size: 16px; border-radius: 4px; }
+        .ox-group button { width: 50px; height: 35px; border: 1px solid #ccc; cursor: pointer; background: #eee; font-weight: bold; font-size: 15px; border-radius: 4px; }
         .active-o { background: var(--success) !important; color: white; border-color: #1e8449 !important; }
         .active-x { background: #000 !important; color: #ff3f34 !important; border-color: #ff3f34 !important; }
         
@@ -84,27 +85,46 @@
         .hose-date-container { background: #eef2f7; padding: 8px; border-radius: 6px; margin-top: 5px; display: flex; flex-direction: column; gap: 5px; }
         .hose-date-item { display: flex; align-items: center; justify-content: space-between; font-size: 13px; }
         .hose-date-item input { width: 60% !important; }
+
+        /* QR區塊 */
+        .qr-section { display: flex; flex-direction: column; align-items: center; background: #f8f9fa; padding: 10px; border-radius: 8px; margin-bottom: 15px; border: 1px dashed #ccc; }
+        #modal-qrcode { margin-top: 8px; }
+
+        /* 歷史歷程區塊 */
+        .history-section { margin-top: 15px; background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 10px; }
+        .history-title { font-weight: bold; font-size: 14px; color: #555; margin-bottom: 8px; border-bottom: 2px solid #eee; padding-bottom: 4px; }
+        .history-item { font-size: 12px; display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px dashed #eee; }
+
+        /* 列印QR碼專用隱藏介面 */
+        #print-qr-ghost { display: none; }
+        @media print {
+            body * { display: none !important; }
+            #print-qr-ghost { display: block !important; position: absolute; top:0; left:0; width:100%; }
+            .print-tile { display: inline-flex; flex-direction: column; align-items: center; justify-content: center; width: 160px; height: 180px; border: 1px solid #000; margin: 8px; padding: 8px; page-break-inside: avoid; }
+            .print-tile span { font-size: 12px; font-weight: bold; margin-top: 5px; text-align: center; word-break: break-all; }
+        }
     </style>
 </head>
 <body>
 
 <div id="toolbar">
-    <div style="font-size: 1.1em; font-weight: bold;">🚒 廠區消防安全巡檢規劃系統 (行動版)</div>
+    <div style="font-size: 1.1em; font-weight: bold;">🚒 廠區消防安全巡檢系統 (高解析+每月歷程整合版)</div>
     
-    <label class="btn btn-project-load">📂 1. 開啟專案檔 (.json)<input type="file" id="load-project" accept=".json" style="display:none;"></label>
+    <label class="btn btn-project-load">📂 1. 開啟巡檢專案檔 (.json)<input type="file" id="load-project" accept=".json" style="display:none;"></label>
     <label class="btn btn-upload">📁 新建圖面 (PDF/圖檔)<input type="file" id="upload" accept="application/pdf, image/*" style="display:none;"></label>
     
     <button class="btn btn-add-ext" id="add-ext-btn" onclick="toggleAddMode('ext')">🧯 新增滅火器</button>
-    <button class="btn btn-add-hyd" id="add-hyd-btn" onclick="toggleAddMode('hyd')">🏠 新增消防栓箱</button>
-    <button class="btn btn-project-save" onclick="exportProjectJSON()">💾 3. 另存專案檔</button>
+    <button class="btn btn-add-hyd" id="add-hyd-btn" onclick="toggleAddMode('hyd')">🏠 新增室內消防栓箱</button>
+    <button class="btn btn-project-save" onclick="exportProjectJSON()">💾 3. 另存巡檢專案檔</button>
     
-    <button class="btn btn-jpg" onclick="exportJPG()">🖼️ 輸出 JPG</button>
-    <button class="btn btn-pdf" onclick="exportPDF()">📄 輸出 PDF</button>
-    <button class="btn btn-excel" onclick="exportExcel()">📊 匯出 Excel</button>
+    <button class="btn btn-print-qr" onclick="printAllQRCodes()">🖨️ 批次列印全廠 QR Code</button>
+    <button class="btn btn-jpg" onclick="exportJPG()">🖼️ 輸出高畫質 JPG</button>
+    <button class="btn btn-pdf" onclick="exportPDF()">📄 輸出高畫質 PDF</button>
+    <button class="btn btn-excel" onclick="exportExcel()">📊 匯出每月歷史報表</button>
     
     <div class="range-container">
         <label>📐 圖標大小:</label>
-        <input type="range" id="icon-scale-slider" min="0.5" max="2.5" step="0.1" value="1.0" oninput="updateIconScale(this.value)">
+        <input type="range" id="icon-scale-slider" min="0.1" max="2.5" step="0.05" value="1.0" oninput="updateIconScale(this.value)">
         <span id="scale-val">100%</span>
     </div>
 
@@ -123,8 +143,15 @@
 
 <div id="modal">
     <h3 id="modal-title" style="margin-top:0; color:var(--dark);">設備基本資料</h3>
+    
+    <div class="qr-section">
+        <span style="font-size: 13px; font-weight: bold; color: #2c3e50;">🔗 本點位專屬巡檢 QR Code</span>
+        <div id="modal-qrcode"></div>
+    </div>
+
     <div style="margin-bottom:15px; background: #f8f9fa; padding: 12px; border-radius: 8px; display: flex; flex-direction: column; gap: 8px;">
         <label>位置/設備名稱：<input type="text" id="m-name" placeholder="請輸入自訂名稱"></label>
+        <label>本月巡檢月份：<input type="month" id="m-inspect-month"></label>
         
         <div id="ext-specs-area">
             <label>設備規格：
@@ -156,9 +183,17 @@
     
     <div id="check-list-area"></div>
 
-    <button class="save-btn" onclick="saveCheck()">儲存巡檢紀錄</button>
-    <button onclick="deletePoint()" style="width:100%; margin-top:12px; background:none; border:none; color:#ae1c1c; cursor:pointer; font-weight:bold; padding: 5px;">✕ 刪除此點位</button>
+    <button class="save-btn" onclick="saveCheck()">確認送出本月紀錄</button>
+    
+    <div class="history-section">
+        <div class="history-title">📅 歷史巡檢歷程紀錄</div>
+        <div id="history-list-box"></div>
+    </div>
+
+    <button onclick="deletePoint()" style="width:100%; margin-top:20px; background:none; border:none; color:#ae1c1c; cursor:pointer; font-weight:bold; padding: 5px;">✕ 刪除此點位</button>
 </div>
+
+<div id="print-qr-ghost"></div>
 
 <script>
     try {
@@ -171,10 +206,11 @@
     let isAddMode = false;      
     let addType = '';           
     let currentMapDataUrl = ""; 
+    let qrGenerator = null;
 
     let mapScale = 1, mapX = 0, mapY = 0;
     let isPanning = false, startX, startY;
-    let startTouchDist = 0; // 用於雙指縮放
+    let startTouchDist = 0;
 
     const viewport = document.getElementById('viewport');
     const container = document.getElementById('pan-zoom-container');
@@ -182,43 +218,8 @@
     const ctx = canvas.getContext('2d');
     const statusTxt = document.getElementById('save-status');
 
-    // SVG 圖標定義
-    const extSvgString = `<svg class="ext-svg-icon" viewBox="0 0 100 200" xmlns="http://www.w3.org/2000/svg">
-        <path d="M48,32 L95,8 C95,8 90,0 80,4 L48,22 Z" fill="#4a4a4a"/>
-        <path d="M48,35 L88,35 C88,35 88,25 78,27 L48,27 Z" fill="#5a5a5a"/>
-        <circle cx="48" cy="30" r="12" fill="#e0e0e0" stroke="#4a4a4a" stroke-width="2"/>
-        <path d="M38,30 A10,10 0 0,1 58,30" fill="none" stroke="#e74c3c" stroke-width="3"/>
-        <line x1="48" y1="30" x2="48" y2="22" stroke="#4a4a4a" stroke-width="2"/>
-        <path d="M40,26 C15,26 15,130 22,130" fill="none" stroke="#4a4a4a" stroke-width="8" stroke-linecap="round"/>
-        <polygon points="12,130 32,130 38,170 6,170" fill="#4a4a4a"/>
-        <rect x="40" y="38" width="16" height="12" fill="#bbb"/>
-        <rect x="34" y="48" width="52" height="140" rx="24" fill="#e74c3c"/>
-        <rect x="40" y="85" width="40" height="82" rx="6" fill="#f5f5f5"/>
-        <line x1="46" y1="98" x2="74" y2="98" stroke="#4a4a4a" stroke-width="4" stroke-linecap="round"/>
-        <line x1="46" y1="108" x2="74" y2="108" stroke="#4a4a4a" stroke-width="4" stroke-linecap="round"/>
-        <path d="M60,120 C50,132 50,154 60,158 C70,154 70,132 60,120 Z" fill="#e74c3c"/>
-        <path d="M60,132 C54,140 54,152 60,155 C66,152 66,140 60,132 Z" fill="#f1c40f"/>
-    </svg>`;
-    
-    const hydSvgString = `<svg class="ext-svg-icon" viewBox="0 0 100 160" xmlns="http://www.w3.org/2000/svg">
-        <rect x="5" y="5" width="90" height="150" fill="#b30000" rx="2" stroke="#7a0000" stroke-width="2"/>
-        <rect x="8" y="8" width="84" height="144" fill="#d60000" rx="1"/>
-        <line x1="8" y1="42" x2="92" y2="42" stroke="#7a0000" stroke-width="1.5"/>
-        <circle cx="26" cy="25" r="11" fill="#b30000" stroke="#7a0000" stroke-width="1"/>
-        <circle cx="26" cy="25" r="7" fill="#1a1a1a"/>
-        <rect x="22" y="21" width="8" height="2" fill="#fff"/>
-        <text x="26" y="27" font-family="sans-serif" font-size="3" fill="#fff" text-anchor="middle" font-weight="bold">PUSH</text>
-        <circle cx="50" cy="25" r="7" fill="#ff4d4d" stroke="#ffb3b3" stroke-width="1"/>
-        <circle cx="50" cy="25" r="4" fill="#ff9999"/>
-        <circle cx="74" cy="25" r="8" fill="none" stroke="#7a0000" stroke-dasharray="2,2" stroke-width="1.5"/>
-        <circle cx="74" cy="25" r="5" fill="none" stroke="#7a0000" stroke-dasharray="1,1" stroke-width="1"/>
-        <circle cx="74" cy="25" r="1.5" fill="#1a1a1a"/>
-        <rect x="12" y="48" width="76" height="98" fill="#c40000" rx="1"/>
-        <path d="M12,48 L22,48 L22,146 L12,146 Z" fill="#990000" opacity="0.3"/>
-        <text x="50" y="98" font-family="Georgia, sans-serif" font-size="11" font-weight="bold" fill="#ffffff" text-anchor="middle" letter-spacing="0.5">HYDRANT</text>
-        <rect x="95" y="45" width="5" height="10" fill="#990000"/>
-        <rect x="95" y="115" width="5" height="10" fill="#990000"/>
-    </svg>`;
+    const extSvgString = `<svg class="ext-svg-icon" viewBox="0 0 100 200" xmlns="http://www.w3.org/2000/svg"><path d="M48,32 L95,8 C95,8 90,0 80,4 L48,22 Z" fill="#4a4a4a"/><path d="M48,35 L88,35 C88,35 88,25 78,27 L48,27 Z" fill="#5a5a5a"/><circle cx="48" cy="30" r="12" fill="#e0e0e0" stroke="#4a4a4a" stroke-width="2"/><path d="M38,30 A10,10 0 0,1 58,30" fill="none" stroke="#e74c3c" stroke-width="3"/><line x1="48" y1="30" x2="48" y2="22" stroke="#4a4a4a" stroke-width="2"/><path d="M40,26 C15,26 15,130 22,130" fill="none" stroke="#4a4a4a" stroke-width="8" stroke-linecap="round"/><polygon points="12,130 32,130 38,170 6,170" fill="#4a4a4a"/><rect x="40" y="38" width="16" height="12" fill="#bbb"/><rect x="34" y="48" width="52" height="140" rx="24" fill="#e74c3c"/><rect x="40" y="85" width="40" height="82" rx="6" fill="#f5f5f5"/><line x1="46" y1="98" x2="74" y2="98" stroke="#4a4a4a" stroke-width="4" stroke-linecap="round"/><line x1="46" y1="108" x2="74" y2="108" stroke="#4a4a4a" stroke-width="4" stroke-linecap="round"/><path d="M60,120 C50,132 50,154 60,158 C70,154 70,132 60,120 Z" fill="#e74c3c"/><path d="M60,132 C54,140 54,152 60,155 C66,152 66,140 60,132 Z" fill="#f1c40f"/></svg>`;
+    const hydSvgString = `<svg class="ext-svg-icon" viewBox="0 0 100 160" xmlns="http://www.w3.org/2000/svg"><rect x="5" y="5" width="90" height="150" fill="#b30000" rx="2" stroke="#7a0000" stroke-width="2"/><rect x="8" y="8" width="84" height="144" fill="#d60000" rx="1"/><line x1="8" y1="42" x2="92" y2="42" stroke="#7a0000" stroke-width="1.5"/><circle cx="26" cy="25" r="11" fill="#b30000" stroke="#7a0000" stroke-width="1"/><circle cx="26" cy="25" r="7" fill="#1a1a1a"/><rect x="22" y="21" width="8" height="2" fill="#fff"/><text x="26" y="27" font-family="sans-serif" font-size="3" fill="#fff" text-anchor="middle" font-weight="bold">PUSH</text><circle cx="50" cy="25" r="7" fill="#ff4d4d" stroke="#ffb3b3" stroke-width="1"/><circle cx="50" cy="25" r="4" fill="#ff9999"/><circle cx="74" cy="25" r="8" fill="none" stroke="#7a0000" stroke-dasharray="2,2" stroke-width="1.5"/><circle cx="74" cy="25" r="5" fill="none" stroke="#7a0000" stroke-dasharray="1,1" stroke-width="1"/><circle cx="74" cy="25" r="1.5" fill="#1a1a1a"/><rect x="12" y="48" width="76" height="98" fill="#c40000" rx="1"/><path d="M12,48 L22,48 L22,146 L12,146 Z" fill="#990000" opacity="0.3"/><text x="50" y="98" font-family="Georgia, sans-serif" font-size="11" font-weight="bold" fill="#ffffff" text-anchor="middle" letter-spacing="0.5">HYDRANT</text><rect x="95" y="45" width="5" height="10" fill="#990000"/><rect x="95" y="115" width="5" height="10" fill="#990000"/></svg>`;
 
     window.onload = () => {
         initDefaultCanvas();
@@ -228,17 +229,61 @@
             updateIconScale(s);
         }
         updateTransform();
+        
+        // 嘗試自動加載專案 (支援在線中央發布或本地緩存復原)
+        showStatus("⏳ 正在自動檢查環境專案檔...");
+        fetch('project.json')
+            .then(res => { if(!res.ok) throw new Error(); return res.json(); })
+            .then(bundle => { processLoadedBundle(bundle, "✅ 最新網頁中央專案檔已自動加載！"); })
+            .catch(() => {
+                if (localStorage.getItem('current_ehs_project')) {
+                    restoreProjectFromDataStr(localStorage.getItem('current_ehs_project'), () => { showStatus("✅ 已自瀏覽器暫存回復先前進度。"); checkUrlParamsForCheck(); });
+                } else {
+                    showStatus("⚙️ 系統就緒，請開啟您的巡檢專案檔 (.json)");
+                }
+            });
     };
 
     function initDefaultCanvas() {
         canvas.width = 1100; canvas.height = 650;
         canvas.style.width = "1100px"; canvas.style.height = "650px";
-        ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = "#ffffff"; ctx.fillRect(0,0,canvas.width,canvas.height);
         ctx.fillStyle = "#2c3e50"; ctx.font = "bold 22px sans-serif"; ctx.textAlign = "center";
-        ctx.fillText("歡迎使用！請還原您的巡檢專案檔 (.json)", canvas.width / 2, canvas.height / 2);
+        ctx.fillText("歡迎使用！請從上方載入您的巡檢專案檔 (.json)", canvas.width/2, canvas.height/2);
     }
 
-    // 載入新底圖
+    function restoreProjectFromDataStr(dataStr, callback) {
+        try {
+            const bundle = JSON.parse(dataStr);
+            processLoadedBundle(bundle, "📂 專案回復成功！");
+            if(callback) callback();
+        } catch(e){ alert("解析專案檔案失敗，請檢查格式是否正確。"); }
+    }
+
+    function processLoadedBundle(bundle, successMsg) {
+        if (bundle.mapImage) {
+            currentMapDataUrl = bundle.mapImage;
+            canvas.width = bundle.canvasW; canvas.height = bundle.canvasH;
+            canvas.style.width = bundle.canvasStyleW; canvas.style.height = bundle.canvasStyleH;
+            const img = new Image();
+            img.onload = function() {
+                ctx.clearRect(0,0,canvas.width,canvas.height); ctx.drawImage(img,0,0);
+                points = bundle.savedPoints || [];
+                
+                // 防呆：確保每個點位都有 history 欄位防報錯
+                points.forEach(p => { if(!p.history) p.history = []; });
+
+                evaluateAllPointsExpiry(); 
+                mapScale = 1; mapX = 0; mapY = 0; updateTransform();
+                renderPoints();
+                showStatus(successMsg + " (共有 " + points.length + " 個點位)");
+                checkUrlParamsForCheck();
+            };
+            img.src = bundle.mapImage;
+        }
+    }
+
+    // 處理底圖新建
     document.getElementById('upload').onchange = function(e) {
         const file = e.target.files[0]; if(!file) return;
         showStatus("⏳ 圖面轉譯中...");
@@ -255,7 +300,7 @@
                         const renderContext = { canvasContext: ctx, viewport: viewportPage };
                         page.render(renderContext).promise.then(() => {
                             currentMapDataUrl = canvas.toDataURL('image/jpeg', 0.8);
-                            points = []; renderPoints(); showStatus("✅ PDF 底圖載入完成");
+                            points = []; renderPoints(); saveToLocalCache(); showStatus("✅ PDF 底圖載入完成");
                         });
                     });
                 });
@@ -269,7 +314,7 @@
                     canvas.width = img.width; canvas.height = img.height;
                     canvas.style.width = img.width + "px"; canvas.style.height = img.height + "px";
                     ctx.drawImage(img, 0, 0); currentMapDataUrl = canvas.toDataURL('image/jpeg', 0.8);
-                    points = []; renderPoints(); showStatus("✅ 圖檔載入完成");
+                    points = []; renderPoints(); saveToLocalCache(); showStatus("✅ 圖檔載入完成");
                 };
                 img.src = event.target.result;
             };
@@ -277,85 +322,6 @@
         }
     };
 
-    function exportProjectJSON() {
-        if (!currentMapDataUrl) { alert("無圖面無法儲存！"); return; }
-        let defaultName = "廠區整合巡檢專案_" + new Date().toISOString().slice(0,10).replace(/-/g,"");
-        let userFileName = prompt("請輸入專案儲存名稱：", defaultName);
-        if (!userFileName) return;
-
-        const bundleProject = {
-            mapImage: currentMapDataUrl,
-            canvasStyleW: canvas.style.width, canvasStyleH: canvas.style.height,
-            canvasW: canvas.width, canvasH: canvas.height,
-            savedPoints: points
-        };
-        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(bundleProject));
-        const downloadAnchor = document.createElement('a');
-        downloadAnchor.setAttribute("href", dataStr); downloadAnchor.setAttribute("download", userFileName.trim() + ".json");
-        document.body.appendChild(downloadAnchor); downloadAnchor.click(); downloadAnchor.remove();
-    }
-
-    document.getElementById('load-project').onchange = function(e) {
-        const file = e.target.files[0]; if (!file) return;
-        showStatus("⏳ 正在還原專案點位圖層...");
-        const reader = new FileReader();
-        reader.onload = function(evt) {
-            try {
-                const bundle = JSON.parse(evt.target.result);
-                if (bundle.mapImage) {
-                    currentMapDataUrl = bundle.mapImage;
-                    canvas.width = bundle.canvasW; canvas.height = bundle.canvasH;
-                    canvas.style.width = bundle.canvasStyleW; canvas.style.height = bundle.canvasStyleH;
-
-                    const img = new Image();
-                    img.onload = function() {
-                        ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.drawImage(img, 0, 0);
-                        points = bundle.savedPoints || [];
-                        evaluateAllPointsExpiry();
-                        mapScale = 1; mapX = 0; mapY = 0; updateTransform();
-                        renderPoints();
-                        showStatus("📂 專案完全復原！共有 " + points.length + " 個定位標示點");
-                    };
-                    img.src = bundle.mapImage;
-                }
-            } catch (err) { alert("讀取失敗，請確認檔案格式。"); }
-        };
-        reader.readAsText(file);
-    };
-
-    // 滑鼠滾輪縮放
-    viewport.onwheel = function(e) {
-        e.preventDefault();
-        if (e.ctrlKey) { mapX += (e.deltaY < 0 ? 55 : -55); updateTransform(); return; }
-        const rect = viewport.getBoundingClientRect();
-        const mouseX = e.clientX - rect.left, mouseY = e.clientY - rect.top;
-        zoomAt(mouseX, mouseY, e.deltaY < 0 ? 1.1 : 1/1.1);
-    };
-
-    function zoomAt(clientX, clientY, factor) {
-        const rect = viewport.getBoundingClientRect();
-        const mouseX = clientX - rect.left, mouseY = clientY - rect.top;
-        const currentX = (mouseX - mapX) / mapScale, currentY = (mouseY - mapY) / mapScale;
-        mapScale = Math.min(Math.max(0.1, mapScale * factor), 10); 
-        mapX = mouseX - currentX * mapScale; mapY = mouseY - currentY * mapScale;
-        updateTransform();
-    }
-
-    function toggleAddMode(type) {
-        if (isAddMode && addType === type) {
-            isAddMode = false; addType = '';
-            document.getElementById('add-ext-btn').classList.remove('active');
-            document.getElementById('add-hyd-btn').classList.remove('active');
-            viewport.classList.remove('add-mode-active');
-        } else {
-            isAddMode = true; addType = type;
-            document.getElementById('add-ext-btn').classList.toggle('active', type === 'ext');
-            document.getElementById('add-hyd-btn').classList.toggle('active', type === 'hyd');
-            viewport.classList.add('add-mode-active');
-        }
-    }
-
-    // 處理新增標點 (相容滑鼠點擊與單指輕觸)
     function handleAddPointEvent(clientX, clientY) {
         if (!isAddMode) return;
         const rect = canvas.getBoundingClientRect();
@@ -368,26 +334,24 @@
             points.push({ 
                 id: Date.now(), kind: 'ext', pctX: clickX / canvasW, pctY: clickY / canvasH, 
                 name: `滅火器-${points.length+1}`, type: '10P 乾粉', mfgDate: '',
-                inspected: false, done: false, results: {}, notes: {} 
+                inspected: false, done: false, results: {}, notes: {}, history: [] 
             });
         } else if (addType === 'hyd') {
             points.push({
                 id: Date.now(), kind: 'hyd', pctX: clickX / canvasW, pctY: clickY / canvasH,
                 name: `室內消防栓-${points.length+1}`, hoseCount: '1', hoseDates: [''],
-                inspected: false, done: false, results: {}, notes: {}
+                inspected: false, done: false, results: {}, notes: {}, history: []
             });
         }
         isAddMode = false; addType = '';
         document.getElementById('add-ext-btn').classList.remove('active');
         document.getElementById('add-hyd-btn').classList.remove('active');
         viewport.classList.remove('add-mode-active');
-        evaluateAllPointsExpiry(); renderPoints();
+        evaluateAllPointsExpiry(); renderPoints(); saveToLocalCache();
     }
 
     document.getElementById('capture-area').onmousedown = function(e) {
-        if (e.button === 0 && !isDraggingIcon && !isPanning && !e.ctrlKey) {
-            handleAddPointEvent(e.clientX, e.clientY);
-        }
+        if (e.button === 0 && !isDraggingIcon && !isPanning && !e.ctrlKey) { handleAddPointEvent(e.clientX, e.clientY); }
     };
 
     function renderPoints() {
@@ -409,24 +373,18 @@
                 wrapper.innerHTML = `${statusHTML}${extSvgString}<div class="info-label">${p.name}<br>${p.type}</div>`;
             } else {
                 let hasExpiredHose = false;
-                if(p.hoseDates && p.hoseDates.length > 0) {
-                    p.hoseDates.forEach(d => {
-                        if(calculateExpiryStatus(d, 10).status === 'expired') hasExpiredHose = true;
-                    });
-                }
+                if(p.hoseDates) { p.hoseDates.forEach(d => { if(calculateExpiryStatus(d, 10).status === 'expired') hasExpiredHose = true; }); }
                 if (hasExpiredHose) statusHTML = `<div class="status-badge status-fail">【水帶逾期】</div>`;
                 else if (p.inspected) statusHTML = p.done ? `<div class="status-badge status-ok">【合格】</div>` : `<div class="status-badge status-fail">【不合格】</div>`;
-                
-                wrapper.innerHTML = `${statusHTML}${hydSvgString}<div class="info-label" style="background:rgba(186, 22, 22, 0.95); border:1px solid #ff7979;">${p.name}<br>水帶:${p.hoseCount}條</div>`;
+                wrapper.innerHTML = `${statusHTML}${hydSvgString}<div class="info-label" style="background:rgba(186,22,22,0.95); border:1px solid #ff7979;">${p.name}<br>水帶:${p.hoseCount}條</div>`;
             }
             
-            // --- 滑鼠拖曳邏輯 ---
+            // 滑鼠
             wrapper.onmousedown = function(e) {
                 if (e.button !== 0 || e.ctrlKey || isAddMode) return; 
                 e.stopPropagation(); isDraggingIcon = false;
                 let startClientX = e.clientX, startClientY = e.clientY;
                 let startLeft = p.pctX * canvasW, startTop = p.pctY * canvasH;
-
                 function onMouseMove(moveEv) {
                     isDraggingIcon = true;
                     let currentLeft = startLeft + (moveEv.clientX - startClientX) / mapScale;
@@ -437,22 +395,20 @@
                 document.addEventListener('mousemove', onMouseMove);
                 document.onmouseup = function() {
                     document.removeEventListener('mousemove', onMouseMove);
-                    if(!isDraggingIcon) openModal(p); else renderPoints();
+                    if(!isDraggingIcon) openModal(p); else { renderPoints(); saveToLocalCache(); }
                     document.onmouseup = null; setTimeout(() => isDraggingIcon = false, 80);
                 };
             };
 
-            // --- 行動端手指觸控拖曳與點擊邏輯 ---
+            // 行動端
             wrapper.addEventListener('touchstart', function(e) {
                 if (isAddMode) return;
-                e.stopPropagation(); 
-                isDraggingIcon = false;
+                e.stopPropagation(); isDraggingIcon = false;
                 let touch = e.touches[0];
                 let startClientX = touch.clientX, startClientY = touch.clientY;
                 let startLeft = p.pctX * canvasW, startTop = p.pctY * canvasH;
-
                 function onTouchMove(moveEv) {
-                    if(moveEv.touches.length > 1) return; // 雙指不觸發拖曳
+                    if(moveEv.touches.length > 1) return;
                     isDraggingIcon = true;
                     let t = moveEv.touches[0];
                     let currentLeft = startLeft + (t.clientX - startClientX) / mapScale;
@@ -460,18 +416,13 @@
                     p.pctX = currentLeft / canvasW; p.pctY = currentTop / canvasH;
                     wrapper.style.left = currentLeft + 'px'; wrapper.style.top = currentTop + 'px';
                 }
-
                 function onTouchEnd() {
                     wrapper.removeEventListener('touchmove', onTouchMove);
                     wrapper.removeEventListener('touchend', onTouchEnd);
-                    if (!isDraggingIcon) {
-                        openModal(p);
-                    } else {
-                        renderPoints();
-                    }
+                    if (!isDraggingIcon) openModal(p); else { renderPoints(); saveToLocalCache(); }
                     setTimeout(() => isDraggingIcon = false, 80);
                 }
-                wrapper.addEventListener('touchmove', onTouchMove, {pasive: false});
+                wrapper.addEventListener('touchmove', onTouchMove, {passive: false});
                 wrapper.addEventListener('touchend', onTouchEnd);
             }, {passive: false});
 
@@ -479,36 +430,30 @@
         });
     }
 
-    function generateHoseDateInputs() {
-        const count = parseInt(document.getElementById('m-hyd-count').value) || 1;
-        const box = document.getElementById('hose-dates-box');
-        box.innerHTML = '';
-        let savedDates = (currentPoint && currentPoint.hoseDates) ? currentPoint.hoseDates : [];
-
-        for(let i = 0; i < count; i++) {
-            const itemValue = savedDates[i] || '';
-            const div = document.createElement('div'); div.className = 'hose-date-item';
-            div.innerHTML = `<span>第 ${i+1} 條生產日:</span><input type="date" class="m-hyd-date-input" data-index="${i}" value="${itemValue}" onchange="checkHydHoseExpiryInModal()">`;
-            box.appendChild(div);
-        }
-        checkHydHoseExpiryInModal();
-    }
-
-    const extCheckItems = ["本體容器", "壓把", "安全插銷", "壓力計", "皮管", "鏽蝕"];
-    const hydCheckItems = ["箱體內乾淨", "箱體外無阻擋物", "水瞄狀況", "警示燈為恆亮", "箱體漏水"];
-
     function openModal(p) {
         currentPoint = p;
         document.getElementById('m-name').value = p.name;
+        
+        const currentYearMonth = new Date().toISOString().slice(0, 7);
+        document.getElementById('m-inspect-month').value = currentYearMonth;
+
+        // QR Code 生成
+        const cleanUrl = window.location.href.split('?')[0];
+        const qrTargetUrl = `${cleanUrl}?pointId=${p.id}`;
+        document.getElementById('modal-qrcode').innerHTML = "";
+        qrGenerator = new QRCode(document.getElementById('modal-qrcode'), {
+            text: qrTargetUrl, width: 120, height: 120, correctLevel: QRCode.CorrectLevel.H
+        });
+
         const listArea = document.getElementById('check-list-area'); listArea.innerHTML = ''; 
 
         if (p.kind === 'ext') {
-            document.getElementById('modal-title').innerText = "🧯 滅火器資料與巡檢";
+            document.getElementById('modal-title').innerText = "🧯 滅火器資料與每月巡檢";
             document.getElementById('ext-specs-area').style.display = 'block';
             document.getElementById('hyd-specs-area').style.display = 'none';
             document.getElementById('m-type').value = p.type;
             document.getElementById('m-mfg-date').value = p.mfgDate || '';
-            extCheckItems.forEach((item, idx) => { addCheckRow(listArea, item, idx+1, p); });
+            ["本體容器", "壓把", "安全插銷", "壓力計", "皮管", "鏽蝕"].forEach((item, idx) => { addCheckRow(listArea, item, idx+1, p); });
             listArea.innerHTML += `<div class="check-row" data-item="效期"><div class="check-header"><span>7. 是否過期(自動對照)</span><div class="ox-group"><button class="btn-o" id="auto-expiry-o" disabled>O</button><button class="btn-x" id="auto-expiry-x" disabled>X</button></div></div><input type="text" id="auto-expiry-note" class="fail-input" readonly style="background:#f8f9fa;"></div>`;
             checkExpiryInModal();
         } else {
@@ -517,17 +462,18 @@
             document.getElementById('hyd-specs-area').style.display = 'block';
             document.getElementById('m-hyd-count').value = p.hoseCount || '1';
             generateHoseDateInputs();
-            hydCheckItems.forEach((item, idx) => { addCheckRow(listArea, item, idx+1, p); });
+            ["箱體內乾淨", "箱體外無阻擋物", "水瞄狀況", "警示燈為恆亮", "箱體漏水"].forEach((item, idx) => { addCheckRow(listArea, item, idx+1, p); });
         }
+
+        renderHistoryList(p);
         document.getElementById('modal').style.display = 'block'; document.getElementById('overlay').style.display = 'block';
     }
 
     function addCheckRow(targetEl, item, order, p) {
         const res = p.results[item] || ''; const note = p.notes[item] || '';
-        const html = `
+        targetEl.innerHTML += `
             <div class="check-row" data-item="${item}">
-                <div class="check-header">
-                    <span>${order}. ${item}</span>
+                <div class="check-header"><span>${order}. ${item}</span>
                     <div class="ox-group">
                         <button class="btn-o ${res === 'O' ? 'active-o' : ''}" onclick="setOX(this, 'O')">O</button>
                         <button class="btn-x ${res === 'X' ? 'active-x' : ''}" onclick="setOX(this, 'X')">X</button>
@@ -535,51 +481,131 @@
                 </div>
                 <input type="text" class="fail-input" style="display:${res === 'X' ? 'block' : 'none'};" value="${note}" placeholder="不合格原因描述...">
             </div>`;
-        targetEl.innerHTML += html;
+    }
+
+    function renderHistoryList(p) {
+        const box = document.getElementById('history-list-box');
+        box.innerHTML = "";
+        if(!p.history || p.history.length === 0) { box.innerHTML = "<div style='font-size:12px;color:#999;'>尚無歷史巡檢紀錄</div>"; return; }
+        let sorted = [...p.history].sort((a,b) => b.month.localeCompare(a.month));
+        sorted.forEach(h => {
+            let badge = h.done ? "<span style='color:green;font-weight:bold;'>合格</span>" : "<span style='color:red;font-weight:bold;'>不合格</span>";
+            let summary = h.failSummary ? ` (${h.failSummary})` : "";
+            box.innerHTML += `<div class="history-item"><span>📅 ${h.month}</span><span>${badge}${summary}</span></div>`;
+        });
     }
 
     function saveCheck() {
+        const targetMonth = document.getElementById('m-inspect-month').value;
+        if(!targetMonth) { alert("請選擇巡檢月份！"); return; }
+
         currentPoint.name = document.getElementById('m-name').value || "未命名位置";
         let allOk = true, anyMarked = false;
+        let failItems = [];
 
         if (currentPoint.kind === 'ext') {
             currentPoint.type = document.getElementById('m-type').value;
             currentPoint.mfgDate = document.getElementById('m-mfg-date').value;
-            document.querySelectorAll('.check-row').forEach(row => {
-                const item = row.getAttribute('data-item'); if(item === '效期') return;
+            document.querySelectorAll('#check-list-area .check-row').forEach(row => {
+                const item = row.getAttribute('data-item'); if(item==='效期') return;
                 const isO = row.querySelector('.btn-o').classList.contains('active-o');
                 const isX = row.querySelector('.btn-x').classList.contains('active-x');
                 if(isO || isX) anyMarked = true;
                 currentPoint.results[item] = isO ? 'O' : (isX ? 'X' : '');
                 currentPoint.notes[item] = isX ? row.querySelector('.fail-input').value : '';
-                if(!isO) allOk = false;
+                if(!isO) { allOk = false; if(isX) failItems.push(item); }
             });
-            if (calculateExpiryStatus(currentPoint.mfgDate, 3).status === 'expired') { allOk = false; anyMarked = true; }
+            if (calculateExpiryStatus(currentPoint.mfgDate, 3).status === 'expired') { allOk = false; anyMarked = true; failItems.push("效期過期"); }
         } else {
             currentPoint.hoseCount = document.getElementById('m-hyd-count').value;
-            let dates = [];
-            document.querySelectorAll('.m-hyd-date-input').forEach(input => { dates.push(input.value); });
+            let dates = []; document.querySelectorAll('.m-hyd-date-input').forEach(input => { dates.push(input.value); });
             currentPoint.hoseDates = dates;
             
             let hasExpiredHose = false;
-            dates.forEach(d => {
-                if(d) { anyMarked = true; if(calculateExpiryStatus(d, 10).status === 'expired') hasExpiredHose = true; }
-            });
+            dates.forEach(d => { if(d && calculateExpiryStatus(d, 10).status === 'expired') hasExpiredHose = true; });
+            if(hasExpiredHose) { allOk = false; anyMarked = true; failItems.push("水帶過期"); }
 
-            document.querySelectorAll('.check-row').forEach(row => {
+            document.querySelectorAll('#check-list-area .check-row').forEach(row => {
                 const item = row.getAttribute('data-item');
                 const isO = row.querySelector('.btn-o').classList.contains('active-o');
                 const isX = row.querySelector('.btn-x').classList.contains('active-x');
                 if(isO || isX) anyMarked = true;
                 currentPoint.results[item] = isO ? 'O' : (isX ? 'X' : '');
                 currentPoint.notes[item] = isX ? row.querySelector('.fail-input').value : '';
-                if(!isO) allOk = false;
+                if(!isO) { allOk = false; if(isX) failItems.push(item); }
             });
-            if(hasExpiredHose) allOk = false;
         }
 
         currentPoint.inspected = anyMarked; currentPoint.done = allOk;
-        closeModal();
+
+        if(!currentPoint.history) currentPoint.history = [];
+        let existingIndex = currentPoint.history.findIndex(h => h.month === targetMonth);
+        let logEntry = { month: targetMonth, done: allOk, failSummary: failItems.join(',') };
+        if(existingIndex > -1) currentPoint.history[existingIndex] = logEntry;
+        else currentPoint.history.push(logEntry);
+
+        closeModal(); saveToLocalCache();
+    }
+
+    function printAllQRCodes() {
+        if(points.length === 0) { alert("目前儲存庫內無設施點位可供列印！"); return; }
+        const ghost = document.getElementById('print-qr-ghost');
+        ghost.innerHTML = "";
+        showStatus("⏳ 正在產下列印圖面...");
+        const cleanUrl = window.location.href.split('?')[0];
+        points.forEach((p, idx) => {
+            const tile = document.createElement('div'); tile.className = 'print-tile';
+            const qrContainer = document.createElement('div'); tile.appendChild(qrContainer);
+            const label = document.createElement('span'); label.innerText = `${p.name}\n(${p.kind==='ext'?'滅火器':'消防栓'})`;
+            tile.appendChild(label); ghost.appendChild(tile);
+            new QRCode(qrContainer, { text: `${cleanUrl}?pointId=${p.id}`, width: 110, height: 110, correctLevel: QRCode.CorrectLevel.M });
+        });
+        setTimeout(() => { window.print(); }, 800);
+    }
+
+    function exportExcel() {
+        let monthSet = new Set();
+        points.forEach(p => { if(p.history) p.history.forEach(h => monthSet.add(h.month)); });
+        let monthList = Array.from(monthSet).sort();
+        if(monthList.length === 0) monthList.push(new Date().toISOString().slice(0,7));
+
+        let csv = "\ufeff設施種類,設備名稱,規格細節,製造日期/水帶日期";
+        monthList.forEach(m => { csv += `,${m} 巡檢狀態,${m} 異常備註`; }); csv += "\n";
+
+        points.forEach(p => {
+            let typeStr = p.kind === 'ext' ? '滅火器' : '室內消防栓箱';
+            let specStr = p.kind === 'ext' ? p.type : `水帶 ${p.hoseCount} 條`;
+            let dateStr = p.kind === 'ext' ? (p.mfgDate || '未填') : (p.hoseDates || []).join(' | ');
+            csv += `${typeStr},${p.name},${specStr},${dateStr}`;
+            monthList.forEach(m => {
+                let historyRecord = p.history ? p.history.find(h => h.month === m) : null;
+                if(historyRecord) {
+                    csv += `,${historyRecord.done ? "合格" : "不合格"},"${historyRecord.failSummary || '無異常'}"`;
+                } else { csv += `,未巡檢,`; }
+            });
+            csv += "\n";
+        });
+
+        const blob = new Blob([csv], {type: 'text/csv'}); const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob); a.download = `廠區巡檢歷史報表_${new Date().toISOString().slice(0,10)}.csv`; a.click();
+    }
+
+    function generateHoseDateInputs() {
+        const count = parseInt(document.getElementById('m-hyd-count').value) || 1;
+        const box = document.getElementById('hose-dates-box'); box.innerHTML = '';
+        let savedDates = (currentPoint && currentPoint.hoseDates) ? currentPoint.hoseDates : [];
+        for(let i = 0; i < count; i++) {
+            const itemValue = savedDates[i] || '';
+            const div = document.createElement('div'); div.className = 'hose-date-item';
+            div.innerHTML = `<span>第 ${i+1} 條:</span><input type="date" class="m-hyd-date-input" data-index="${i}" value="${itemValue}" onchange="checkHydHoseExpiryInModal()">`;
+            box.appendChild(div);
+        }
+        checkHydHoseExpiryInModal();
+    }
+
+    function saveToLocalCache() {
+        const bundleProject = { mapImage: currentMapDataUrl, canvasStyleW: canvas.style.width, canvasStyleH: canvas.style.height, canvasW: canvas.width, canvasH: canvas.height, savedPoints: points };
+        localStorage.setItem('current_ehs_project', JSON.stringify(bundleProject));
     }
 
     function calculateExpiryStatus(dateString, yearsLimit) {
@@ -587,30 +613,15 @@
         const today = new Date(); today.setHours(0,0,0,0);
         const mfgDate = new Date(dateString); mfgDate.setHours(0,0,0,0);
         const expiryDate = new Date(mfgDate); expiryDate.setFullYear(expiryDate.getFullYear() + yearsLimit);
-        if (today >= expiryDate) return { status: 'expired' };
-        return { status: 'normal' };
+        return today >= expiryDate ? { status: 'expired' } : { status: 'normal' };
     }
 
     function checkHydHoseExpiryInModal() {
         const msgDiv = document.getElementById('hyd-expiry-msg'); if(!msgDiv) return;
         let isExpired = false;
-        document.querySelectorAll('.m-hyd-date-input').forEach(input => {
-            if(input.value && calculateExpiryStatus(input.value, 10).status === 'expired') isExpired = true;
-        });
-        if(isExpired) { msgDiv.innerText = "❌ 警告：內含已超過10年法定年限之水帶！"; msgDiv.style.color = "#e74c3c"; }
-        else { msgDiv.innerText = "  水帶效期均合格"; msgDiv.style.color = "#27ae60"; }
-    }
-
-    function evaluateAllPointsExpiry() {
-        points.forEach(p => {
-            if (p.kind === 'ext' && p.mfgDate) {
-                if (calculateExpiryStatus(p.mfgDate, 3).status === 'expired') { p.results['效期'] = 'X'; p.inspected = true; p.done = false; }
-            } else if (p.kind === 'hyd' && p.hoseDates) {
-                let expired = false;
-                p.hoseDates.forEach(d => { if(calculateExpiryStatus(d, 10).status === 'expired') expired = true; });
-                if(expired) { p.inspected = true; p.done = false; }
-            }
-        });
+        document.querySelectorAll('.m-hyd-date-input').forEach(input => { if(input.value && calculateExpiryStatus(input.value, 10).status === 'expired') isExpired = true; });
+        if(isExpired) { msgDiv.innerText = "❌ 警告：內含超過10年限期水帶！"; msgDiv.style.color = "#e74c3c"; }
+        else { msgDiv.innerText = " 效期合格"; msgDiv.style.color = "#27ae60"; }
     }
 
     function checkExpiryInModal() {
@@ -620,142 +631,90 @@
         const noteInput = document.getElementById('auto-expiry-note'); if(!oBtn) return;
         oBtn.classList.remove('active-o'); xBtn.classList.remove('active-x'); noteInput.style.display = 'none';
         if (!dateVal) return;
-        const res = calculateExpiryStatus(dateVal, 3);
-        if (res.status === 'expired') {
-            msgDiv.innerText = "❌ 已超過 3 年時效！"; msgDiv.style.color = "#e74c3c";
-            xBtn.classList.add('active-x'); noteInput.style.display = 'block'; noteInput.value = "自動判定：已過3年法定年限";
-        } else { msgDiv.innerText = " 效期安全"; msgDiv.style.color = "#27ae60"; oBtn.classList.add('active-o'); }
+        if (calculateExpiryStatus(dateVal, 3).status === 'expired') {
+            msgDiv.innerText = "❌ 超過 3 年時效！"; msgDiv.style.color = "#e74c3c";
+            xBtn.classList.add('active-x'); noteInput.style.display = 'block'; noteInput.value = "自動判定：已過3年法定規範期限";
+        } else { msgDiv.innerText = " 效期合格"; msgDiv.style.color = "#27ae60"; oBtn.classList.add('active-o'); }
     }
 
-    // --- 地圖平移與縮放（相容滑鼠與行動端雙指） ---
-    viewport.oncontextmenu = (e) => e.preventDefault(); 
-    
-    viewport.onmousedown = function(e) {
-        if (isAddMode) return;
-        if (e.button === 2 || e.button === 1 || (e.button === 0 && e.ctrlKey)) { 
-            isPanning = true; startX = e.clientX - mapX; startY = e.clientY - mapY; e.preventDefault();
+    function evaluateAllPointsExpiry() {
+        points.forEach(p => {
+            if (p.kind === 'ext' && p.mfgDate) { if (calculateExpiryStatus(p.mfgDate, 3).status === 'expired') { p.results['效期'] = 'X'; p.inspected = true; p.done = false; } }
+            else if (p.kind === 'hyd' && p.hoseDates) { let exp = false; p.hoseDates.forEach(d => { if(calculateExpiryStatus(d, 10).status === 'expired') exp = true; }); if(exp) { p.inspected = true; p.done = false; } }
+        });
+    }
+
+    function checkUrlParamsForCheck() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const pointId = urlParams.get('pointId');
+        if (pointId && points.length > 0) {
+            const target = points.find(p => p.id == pointId);
+            if (target) { setTimeout(() => { openModal(target); focusOnPoint(target); }, 600); }
+            else { alert("⚠️ 找不到該 QR Code 對應的設施，請確認專案資料。"); }
         }
-    };
+    }
+
+    function focusOnPoint(p) {
+        const canvasW = parseFloat(canvas.style.width) || canvas.width;
+        const canvasH = parseFloat(canvas.style.height) || canvas.height;
+        mapScale = 1.6; mapX = (viewport.clientWidth / 2) - (p.pctX * canvasW * mapScale); mapY = (viewport.clientHeight / 2) - (p.pctY * canvasH * mapScale); updateTransform();
+    }
+
+    function exportProjectJSON() {
+        if (!currentMapDataUrl) { alert("無圖面數據！"); return; }
+        let defaultName = "廠區整合巡檢專案_" + new Date().toISOString().slice(0,10).replace(/-/g,"");
+        let userFileName = prompt("請輸入專案儲存名稱：", defaultName);
+        if (!userFileName) return;
+
+        const bundleProject = { mapImage: currentMapDataUrl, canvasStyleW: canvas.style.width, canvasStyleH: canvas.style.height, canvasW: canvas.width, canvasH: canvas.height, savedPoints: points };
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(bundleProject));
+        const downloadAnchor = document.createElement('a'); downloadAnchor.setAttribute("href", dataStr); downloadAnchor.setAttribute("download", userFileName.trim() + ".json");
+        document.body.appendChild(downloadAnchor); downloadAnchor.click(); downloadAnchor.remove();
+    }
+
+    document.getElementById('load-project').onchange = function(e) { const file = e.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = function(evt) { restoreProjectFromDataStr(evt.target.result, () => { saveToLocalCache(); }); }; reader.readAsText(file); };
+    viewport.onwheel = function(e) { e.preventDefault(); if (e.ctrlKey) { mapX += (e.deltaY < 0 ? 55 : -55); updateTransform(); return; } zoomAt(e.clientX, e.clientY, e.deltaY < 0 ? 1.1 : 1/1.1); };
+    function zoomAt(clientX, clientY, factor) { const rect = viewport.getBoundingClientRect(); const mouseX = clientX - rect.left, mouseY = clientY - rect.top; const currentX = (mouseX - mapX) / mapScale, currentY = (mouseY - mapY) / mapScale; mapScale = Math.min(Math.max(0.1, mapScale * factor), 10); mapX = mouseX - currentX * mapScale; mapY = mouseY - currentY * mapScale; updateTransform(); }
+    function toggleAddMode(type) { if (isAddMode && addType === type) { isAddMode = false; addType = ''; document.getElementById('add-ext-btn').classList.remove('active'); document.getElementById('add-hyd-btn').classList.remove('active'); viewport.classList.remove('add-mode-active'); } else { isAddMode = true; addType = type; document.getElementById('add-ext-btn').classList.toggle('active', type === 'ext'); document.getElementById('add-hyd-btn').classList.toggle('active', type === 'hyd'); viewport.classList.add('add-mode-active'); } }
+    viewport.oncontextmenu = (e) => e.preventDefault();
+    viewport.onmousedown = function(e) { if (isAddMode) return; if (e.button === 2 || e.button === 1 || (e.button === 0 && e.ctrlKey)) { isPanning = true; startX = e.clientX - mapX; startY = e.clientY - mapY; e.preventDefault(); } };
     document.addEventListener('mousemove', function(e) { if (!isPanning) return; mapX = e.clientX - startX; mapY = e.clientY - startY; updateTransform(); });
     document.addEventListener('mouseup', function() { if (isPanning) isPanning = false; });
-
-    // 行動端地圖平移與雙指縮放核心
-    viewport.addEventListener('touchstart', function(e) {
-        if (isAddMode) {
-            // 如果是在新增模式，單指觸碰直接新增點位
-            if(e.touches.length === 1) {
-                handleAddPointEvent(e.touches[0].clientX, e.touches[0].clientY);
-            }
-            return;
-        }
-        
-        if (e.touches.length === 1) {
-            // 單指平移
-            isPanning = true;
-            startX = e.touches[0].clientX - mapX;
-            startY = e.touches[0].clientY - mapY;
-        } else if (e.touches.length === 2) {
-            // 雙指縮放準備
-            isPanning = false;
-            startTouchDist = Math.hypot(
-                e.touches[0].clientX - e.touches[1].clientX,
-                e.touches[0].clientY - e.touches[1].clientY
-            );
-        }
-    }, {passive: true});
-
-    viewport.addEventListener('touchmove', function(e) {
-        if (isPanning && e.touches.length === 1) {
-            mapX = e.touches[0].clientX - startX;
-            mapY = e.touches[0].clientY - startY;
-            updateTransform();
-        } else if (e.touches.length === 2) {
-            // 雙指縮放中
-            const dist = Math.hypot(
-                e.touches[0].clientX - e.touches[1].clientX,
-                e.touches[0].clientY - e.touches[1].clientY
-            );
-            const factor = dist / startTouchDist;
-            if(Math.abs(factor - 1) > 0.01) {
-                // 以雙指中心點作為縮放焦點
-                const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
-                const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-                zoomAt(midX, midY, factor > 1 ? 1.05 : 0.95);
-                startTouchDist = dist; // 迭代重設起點
-            }
-        }
-    }, {passive: true});
-
-    viewport.addEventListener('touchend', function(e) {
-        isPanning = false;
-    });
-
+    viewport.addEventListener('touchstart', function(e) { if (isAddMode) { if(e.touches.length === 1) handleAddPointEvent(e.touches[0].clientX, e.touches[0].clientY); return; } if (e.touches.length === 1) { isPanning = true; startX = e.touches[0].clientX - mapX; startY = e.touches[0].clientY - mapY; } else if (e.touches.length === 2) { isPanning = false; startTouchDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY); } }, {passive: true});
+    viewport.addEventListener('touchmove', function(e) { if (isPanning && e.touches.length === 1) { mapX = e.touches[0].clientX - startX; mapY = e.touches[0].clientY - startY; updateTransform(); } else if (e.touches.length === 2) { const dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY); const factor = dist / startTouchDist; if(Math.abs(factor - 1) > 0.01) { zoomAt((e.touches[0].clientX + e.touches[1].clientX)/2, (e.touches[0].clientY + e.touches[1].clientY)/2, factor > 1 ? 1.05 : 0.95); startTouchDist = dist; } } }, {passive: true});
+    viewport.addEventListener('touchend', function() { isPanning = false; });
     function updateTransform() { container.style.transform = `translate(${mapX}px, ${mapY}px) scale(${mapScale})`; }
     function updateIconScale(val) { document.documentElement.style.setProperty('--ext-scale', val); document.getElementById('scale-val').innerText = Math.round(val * 100) + '%'; localStorage.setItem('icon_scale_v12', val); }
     function setOX(btn, status) { const row = btn.closest('.check-row'); row.querySelectorAll('button').forEach(b => b.classList.remove('active-o', 'active-x')); btn.classList.add(status === 'O' ? 'active-o' : 'active-x'); row.querySelector('.fail-input').style.display = (status === 'X') ? 'block' : 'none'; }
     function showStatus(text) { statusTxt.innerText = text; }
-
-    // 高解析度導出 JPG / PDF
-    function exportJPG() {
-        showStatus("⏳ 正在產生超高解析度 JPG 圖面...");
-        const oldScale = mapScale, oldX = mapX, oldY = mapY; 
-        mapScale = 1; mapX = 0; mapY = 0; updateTransform();
-        
-        setTimeout(() => {
-            html2canvas(document.getElementById('capture-area'), { 
-                useCORS: true, scale: 4, logging: false, imageTimeout: 0, backgroundColor: "#ffffff"
-            }).then(canvasRes => {
-                const link = document.createElement('a'); 
-                link.download = '綜合消防設施巡檢圖_高解析.jpg';
-                link.href = canvasRes.toDataURL('image/jpeg', 0.95);
-                link.click();
-                mapScale = oldScale; mapX = oldX; mapY = oldY; updateTransform();
-                showStatus("✅ 高解析度 JPG 導出成功！");
-            }).catch(err => {
-                alert("高解析度渲染失敗。");
-                mapScale = oldScale; mapX = oldX; mapY = oldY; updateTransform();
-            });
-        }, 400);
-    }
-
-    function exportPDF() {
-        showStatus("⏳ 正在封裝超高解析度 PDF...");
-        const oldScale = mapScale, oldX = mapX, oldY = mapY; 
-        mapScale = 1; mapX = 0; mapY = 0; updateTransform();
-        
-        setTimeout(() => {
-            html2canvas(document.getElementById('capture-area'), { 
-                useCORS: true, scale: 4, logging: false, imageTimeout: 0
-            }).then(canvasRes => {
-                const { jsPDF } = window.jspdf;
-                const pdf = new jsPDF('l', 'px', [canvasRes.width / 4, canvasRes.height / 4]);
-                pdf.addImage(canvasRes.toDataURL('image/png'), 'PNG', 0, 0, canvasRes.width / 4, canvasRes.height / 4, undefined, 'FAST');
-                pdf.save("綜合消防設施巡檢圖_超高解析.pdf");
-                mapScale = oldScale; mapX = oldX; mapY = oldY; updateTransform();
-                showStatus("✅ 高解析度 PDF 導出成功！");
-            }).catch(err => {
-                alert("高解析度 PDF 建立失敗。");
-                mapScale = oldScale; mapX = oldX; mapY = oldY; updateTransform();
-            });
-        }, 400);
-    }
-
-    function exportExcel() {
-        let csv = "\ufeff設施種類,設備名稱,規格/水帶量,製造/水帶日期清單,巡檢狀態,異常摘要\n";
-        points.forEach(p => {
-            let typeStr = p.kind === 'ext' ? '滅火器' : '室內消防栓箱';
-            let specStr = p.kind === 'ext' ? p.type : `水帶 ${p.hoseCount} 條`;
-            let dateStr = p.kind === 'ext' ? (p.mfgDate || '未填') : (p.hoseDates || []).join(' | ');
-            let stateStr = p.done ? '合格' : '不合格'; if(!p.inspected) stateStr = '未巡檢';
-            let notes = []; for(let key in p.notes) if(p.notes[key]) notes.push(`${key}:${p.notes[key]}`);
-            csv += `${typeStr},${p.name},${specStr},${dateStr},${stateStr},"${notes.join(' / ')}"\n`;
-        });
-        const blob = new Blob([csv], {type: 'text/csv'}); const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob); a.download = '廠區綜合消防巡檢紀錄報表.csv'; a.click();
-    }
-
     function deletePoint() { if(confirm('確定要刪除此標示？')) { points = points.filter(p => p.id !== currentPoint.id); closeModal(); } }
     function closeModal() { document.getElementById('modal').style.display='none'; document.getElementById('overlay').style.display='none'; evaluateAllPointsExpiry(); renderPoints(); }
+
+    // 高解析度 (4倍渲染取樣) 導出 JPG
+    function exportJPG() {
+        showStatus("⏳ 正在產生超高解析度 JPG 圖面...");
+        const oldScale = mapScale, oldX = mapX, oldY = mapY; mapScale = 1; mapX = 0; mapY = 0; updateTransform();
+        setTimeout(() => {
+            html2canvas(document.getElementById('capture-area'), { useCORS: true, scale: 4, logging: false, imageTimeout: 0, backgroundColor: "#ffffff" }).then(canvasRes => {
+                const link = document.createElement('a'); link.download = '綜合消防設施巡檢圖_高解析.jpg'; link.href = canvasRes.toDataURL('image/jpeg', 0.95); link.click();
+                mapScale = oldScale; mapX = oldX; mapY = oldY; updateTransform(); showStatus("✅ 高解析度 JPG 導出成功！");
+            }).catch(err => { alert("高解析度渲染失敗，底圖可能過大。"); mapScale = oldScale; mapX = oldX; mapY = oldY; updateTransform(); });
+        }, 400);
+    }
+
+    // 高解析度 (4倍渲染取樣) 導出 PDF
+    function exportPDF() {
+        showStatus("⏳ 正在封裝超高解析度 PDF...");
+        const oldScale = mapScale, oldX = mapX, oldY = mapY; mapScale = 1; mapX = 0; mapY = 0; updateTransform();
+        setTimeout(() => {
+            html2canvas(document.getElementById('capture-area'), { useCORS: true, scale: 4, logging: false, imageTimeout: 0 }).then(canvasRes => {
+                const { jsPDF } = window.jspdf; const pdf = new jsPDF('l', 'px', [canvasRes.width / 4, canvasRes.height / 4]);
+                pdf.addImage(canvasRes.toDataURL('image/png'), 'PNG', 0, 0, canvasRes.width / 4, canvasRes.height / 4, undefined, 'FAST');
+                pdf.save("綜合消防設施巡檢圖_超高解析.pdf");
+                mapScale = oldScale; mapX = oldX; mapY = oldY; updateTransform(); showStatus("✅ 高解析度 PDF 導出成功！");
+            }).catch(err => { alert("高解析度 PDF 建立失敗。"); mapScale = oldScale; mapX = oldX; mapY = oldY; updateTransform(); });
+        }, 400);
+    }
 </script>
 </body>
 </html>
