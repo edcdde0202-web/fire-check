@@ -1,732 +1,748 @@
-<!DOCTYPE html>
-<html lang="zh-TW">
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <title>廠區消防安全巡檢規劃系統 - 網路自動載入版</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" crossorigin="anonymous"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" crossorigin="anonymous"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
-    <style>
-        :root { --primary: #e74c3c; --success: #27ae60; --warning: #e67e22; --dark: #2c3e50; --ext-scale: 1.0; }
-        * { box-sizing: border-box; }
-        body { font-family: "Microsoft JhengHei", sans-serif; margin: 0; background: #f0f2f5; display: flex; flex-direction: column; height: 100vh; overflow: hidden; user-select: none; }
-        
-        /* 工具列 */
-        #toolbar { background: var(--dark); color: white; padding: 10px 20px; display: flex; gap: 12px; align-items: center; z-index: 1000; flex-wrap: wrap; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
-        .btn { padding: 8px 14px; border-radius: 4px; border: none; cursor: pointer; font-weight: bold; transition: 0.2s; display: inline-flex; align-items: center; gap: 5px; }
-        .btn:hover { opacity: 0.9; transform: translateY(-1px); }
-        .btn-upload { background: #f1c40f; color: #333; }
-        .btn-project-save { background: #9b59b6; color: white; border: 1px solid #fff; }
-        .btn-project-load { background: #2cf3e0; color: #333; font-weight: bold; box-shadow: 0 0 10px rgba(44,243,224,0.5); }
-        
-        .btn-add-ext { background: #e74c3c; color: white; border: 2px solid #fff; }
-        .btn-add-ext.active { background: #fff; color: #e74c3c; box-shadow: 0 0 15px #e74c3c; }
-        .btn-add-hyd { background: #d35400; color: white; border: 2px solid #fff; }
-        .btn-add-hyd.active { background: #fff; color: #d35400; box-shadow: 0 0 15px #d35400; }
-        
-        .btn-jpg { background: #2ecc71; color: white; font-weight: bold; box-shadow: 0 4px 6px rgba(46,204,113,0.3); }
-        .btn-pdf { background: #e67e22; color: white; font-weight: bold; box-shadow: 0 4px 6px rgba(230,126,34,0.3); }
-        .btn-excel { background: #3498db; color: white; }
-        
-        .range-container { display: flex; align-items: center; gap: 8px; font-size: 14px; background: rgba(255,255,255,0.1); padding: 5px 10px; border-radius: 4px; }
-        #save-status { font-size: 13px; color: #2ecc71; font-weight: bold; margin-left: auto; display: inline-flex; align-items: center; gap: 4px; }
-
-        /* 工作區 */
-        #viewport { flex: 1; overflow: hidden; position: relative; background: #7f8c8d; cursor: grab; }
-        #viewport:active { cursor: grabbing; }
-        #viewport.add-mode-active { cursor: crosshair !important; }
-        
-        #pan-zoom-container { position: absolute; top: 0; left: 0; transform-origin: 0 0; display: inline-block; z-index: 1; }
-        #capture-area { position: relative; display: inline-block; background: white; }
-        #bg-canvas { display: block; max-width: none; background: #fff; box-shadow: 0 0 20px rgba(0,0,0,0.3); }
-
-        /* 圖標基本樣式 */
-        .ext-wrapper { 
-            position: absolute; cursor: move; display: flex; flex-direction: column; align-items: center; 
-            transform: translate(-50%, -85%) scale(var(--ext-scale)); z-index: 9999; transform-origin: center bottom;
-            pointer-events: auto;
-        }
-        .ext-svg-icon { width: 38px; height: 55px; filter: drop-shadow(0px 3px 5px rgba(0,0,0,0.4)); }
-        
-        .status-badge {
-            position: absolute; top: -12px; right: -35px; padding: 2px 6px; border-radius: 10px;
-            font-size: 11px; font-weight: bold; white-space: nowrap; box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-            z-index: 10000;
-        }
-        .status-ok { background: var(--success); color: white; border: 1px solid white; }
-        .status-warning { background: var(--warning); color: white; border: 1px solid white; }
-        .status-fail { background: #000; color: #ff3f34; border: 1px solid #ff3f34; }
-
-        .info-label { 
-            margin-top: 4px; background: rgba(0,0,0,0.85); color: white; padding: 3px 8px; 
-            border-radius: 4px; font-size: 11px; text-align: center; line-height: 1.3;
-            white-space: nowrap; box-shadow: 0 2px 5px rgba(0,0,0,0.4);
-            border: 1px solid rgba(255,255,255,0.1);
-        }
-
-        /* 彈窗 */
-        .overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 20000; }
-        #modal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); 
-                 background: white; border-radius: 12px; padding: 20px; z-index: 20001; width: 380px; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.3); }
-        
-        .check-row { border-bottom: 1px solid #eee; padding: 8px 0; }
-        .check-header { display: flex; justify-content: space-between; align-items: center; }
-        .ox-group button { width: 45px; height: 32px; border: 1px solid #ccc; cursor: pointer; background: #eee; font-weight: bold; }
-        .active-o { background: var(--success) !important; color: white; border-color: #1e8449 !important; }
-        .active-x { background: #000 !important; color: #ff3f34 !important; border-color: #ff3f34 !important; }
-        
-        .fail-input { width: 100%; margin-top: 5px; padding: 5px; border: 1px solid #e74c3c; border-radius: 3px; display: none; }
-        .save-btn { width: 100%; padding: 12px; background: var(--dark); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 16px; margin-top: 15px; }
-        input[type="text"], input[type="date"], select { padding: 6px; border: 1px solid #ddd; border-radius: 4px; width: 100%; box-sizing: border-box; }
-        
-        .hose-date-container { background: #eef2f7; padding: 8px; border-radius: 6px; margin-top: 5px; display: flex; flex-direction: column; gap: 5px; }
-        .hose-date-item { display: flex; align-items: center; justify-content: space-between; font-size: 13px; }
-        .hose-date-item input { width: 60% !important; }
-    </style>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <meta http-equiv="Content-Style-Type" content="text/css">
+  <title></title>
+  <meta name="Generator" content="Cocoa HTML Writer">
+  <meta name="CocoaVersion" content="2685.2">
+  <style type="text/css">
+    p.p1 {margin: 0.0px 0.0px 0.0px 0.0px; font: 12.0px Helvetica}
+    p.p2 {margin: 0.0px 0.0px 0.0px 0.0px; font: 12.0px Helvetica; min-height: 14.0px}
+  </style>
 </head>
 <body>
-
-<div id="toolbar">
-    <div style="font-size: 1.1em; font-weight: bold;">🚒 廠區消防安全巡檢規劃系統</div>
-    
-    <label class="btn btn-project-load">📂 1. 開啟巡檢專案檔 (.json)<input type="file" id="load-project" accept=".json" style="display:none;"></label>
-    <label class="btn btn-upload">📁 新建圖面 (PDF/圖檔)<input type="file" id="upload" accept="application/pdf, image/*" style="display:none;"></label>
-    
-    <button class="btn btn-add-ext" id="add-ext-btn" onclick="toggleAddMode('ext')">🧯 新增滅火器</button>
-    <button class="btn btn-add-hyd" id="add-hyd-btn" onclick="toggleAddMode('hyd')">🏠 新增室內消防栓箱</button>
-    <button class="btn btn-project-save" onclick="exportProjectJSON()">💾 3. 另存巡檢專案檔</button>
-    
-    <button class="btn btn-jpg" onclick="exportJPG()">🖼️ 輸出高畫質 JPG</button>
-    <button class="btn btn-pdf" onclick="exportPDF()">📄 輸出高畫質 PDF</button>
-    <button class="btn btn-excel" onclick="exportExcel()">📊 匯出 Excel 報表</button>
-    
-    <div class="range-container">
-        <label>📐 圖標大小:</label>
-        <input type="range" id="icon-scale-slider" min="0.1" max="2.5" step="0.05" value="1.0" oninput="updateIconScale(this.value)">
-        <span id="scale-val">100%</span>
-    </div>
-
-    <div id="save-status">⚙️ 系統就緒</div>
-</div>
-
-<div id="viewport">
-    <div id="pan-zoom-container">
-        <div id="capture-area">
-            <canvas id="bg-canvas"></canvas>
-        </div>
-    </div>
-</div>
-
-<div class="overlay" id="overlay" onclick="closeModal()"></div>
-
-<div id="modal">
-    <h3 id="modal-title" style="margin-top:0; color:var(--dark);">設備基本資料</h3>
-    <div style="margin-bottom:15px; background: #f8f9fa; padding: 12px; border-radius: 8px; display: flex; flex-direction: column; gap: 8px;">
-        <label>位置/設備名稱：<input type="text" id="m-name" placeholder="請輸入自訂名稱"></label>
-        
-        <div id="ext-specs-area">
-            <label>設備規格：
-                <select id="m-type">
-                    <option>10P 乾粉</option>
-                    <option>20P 乾粉</option>
-                    <option>5P CO2</option>
-                    <option>10P CO2</option>
-                </select>
-            </label>
-            <label style="margin-top:5px; display:block;">製造日期：<input type="date" id="m-mfg-date" onchange="checkExpiryInModal()"></label>
-            <div id="modal-expiry-msg" style="font-size: 12px; font-weight: bold; margin-top: 2px;"></div>
-        </div>
-
-        <div id="hyd-specs-area" style="display:none;">
-            <label>水帶數量 (條)：
-                <select id="m-hyd-count" onchange="generateHoseDateInputs()">
-                    <option value="1">1 條</option>
-                    <option value="2">2 條</option>
-                    <option value="3">3 條</option>
-                    <option value="4">4 條</option>
-                </select>
-            </label>
-            <div style="font-size:13px; font-weight:bold; margin-top:5px; color:#c0392b;">水帶製造日期 (法定年限10年)：</div>
-            <div id="hose-dates-box" class="hose-date-container"></div>
-            <div id="hyd-expiry-msg" style="font-size: 12px; font-weight: bold; margin-top: 2px;"></div>
-        </div>
-    </div>
-    
-    <div id="check-list-area"></div>
-
-    <button class="save-btn" onclick="saveCheck()">儲存巡檢紀錄</button>
-    <button onclick="deletePoint()" style="width:100%; margin-top:10px; background:none; border:none; color:#ae1c1c; cursor:pointer; font-weight:bold;">✕ 刪除此點位</button>
-</div>
-
-<script>
-    try {
-        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
-    } catch(err) { console.error("PDF.js 加載失敗"); }
-
-    let points = []; 
-    let currentPoint = null;
-    let isDraggingIcon = false;
-    let isAddMode = false;      
-    let addType = '';           
-    let currentMapDataUrl = ""; 
-
-    let mapScale = 1, mapX = 0, mapY = 0;
-    let isPanning = false, startX, startY;
-
-    const viewport = document.getElementById('viewport');
-    const container = document.getElementById('pan-zoom-container');
-    const canvas = document.getElementById('bg-canvas');
-    const ctx = canvas.getContext('2d');
-    const statusTxt = document.getElementById('save-status');
-
-    // 滅火器 SVG 圖示
-    const extSvgString = `<svg class="ext-svg-icon" viewBox="0 0 100 200" xmlns="http://www.w3.org/2000/svg">
-        <path d="M48,32 L95,8 C95,8 90,0 80,4 L48,22 Z" fill="#4a4a4a"/>
-        <path d="M48,35 L88,35 C88,35 88,25 78,27 L48,27 Z" fill="#5a5a5a"/>
-        <circle cx="48" cy="30" r="12" fill="#e0e0e0" stroke="#4a4a4a" stroke-width="2"/>
-        <path d="M38,30 A10,10 0 0,1 58,30" fill="none" stroke="#e74c3c" stroke-width="3"/>
-        <line x1="48" y1="30" x2="48" y2="22" stroke="#4a4a4a" stroke-width="2"/>
-        <path d="M40,26 C15,26 15,130 22,130" fill="none" stroke="#4a4a4a" stroke-width="8" stroke-linecap="round"/>
-        <polygon points="12,130 32,130 38,170 6,170" fill="#4a4a4a"/>
-        <rect x="40" y="38" width="16" height="12" fill="#bbb"/>
-        <rect x="34" y="48" width="52" height="140" rx="24" fill="#e74c3c"/>
-        <rect x="40" y="85" width="40" height="82" rx="6" fill="#f5f5f5"/>
-        <line x1="46" y1="98" x2="74" y2="98" stroke="#4a4a4a" stroke-width="4" stroke-linecap="round"/>
-        <line x1="46" y1="108" x2="74" y2="108" stroke="#4a4a4a" stroke-width="4" stroke-linecap="round"/>
-        <path d="M60,120 C50,132 50,154 60,158 C70,154 70,132 60,120 Z" fill="#e74c3c"/>
-        <path d="M60,132 C54,140 54,152 60,155 C66,152 66,140 60,132 Z" fill="#f1c40f"/>
-    </svg>`;
-    
-    // 室內消防栓箱 SVG 圖示
-    const hydSvgString = `<svg class="ext-svg-icon" viewBox="0 0 100 160" xmlns="http://www.w3.org/2000/svg">
-        <rect x="5" y="5" width="90" height="150" fill="#b30000" rx="2" stroke="#7a0000" stroke-width="2"/>
-        <rect x="8" y="8" width="84" height="144" fill="#d60000" rx="1"/>
-        <line x1="8" y1="42" x2="92" y2="42" stroke="#7a0000" stroke-width="1.5"/>
-        <circle cx="26" cy="25" r="11" fill="#b30000" stroke="#7a0000" stroke-width="1"/>
-        <circle cx="26" cy="25" r="7" fill="#1a1a1a"/>
-        <rect x="22" y="21" width="8" height="2" fill="#fff"/>
-        <text x="26" y="27" font-family="sans-serif" font-size="3" fill="#fff" text-anchor="middle" font-weight="bold">PUSH</text>
-        <circle cx="50" cy="25" r="7" fill="#ff4d4d" stroke="#ffb3b3" stroke-width="1"/>
-        <circle cx="50" cy="25" r="4" fill="#ff9999"/>
-        <circle cx="74" cy="25" r="8" fill="none" stroke="#7a0000" stroke-dasharray="2,2" stroke-width="1.5"/>
-        <circle cx="74" cy="25" r="5" fill="none" stroke="#7a0000" stroke-dasharray="1,1" stroke-width="1"/>
-        <circle cx="74" cy="25" r="1.5" fill="#1a1a1a"/>
-        <rect x="12" y="48" width="76" height="98" fill="#c40000" rx="1"/>
-        <path d="M12,48 L22,48 L22,146 L12,146 Z" fill="#990000" opacity="0.3"/>
-        <text x="50" y="98" font-family="Georgia, sans-serif" font-size="11" font-weight="bold" fill="#ffffff" text-anchor="middle" letter-spacing="0.5">HYDRANT</text>
-        <rect x="95" y="45" width="5" height="10" fill="#990000"/>
-        <rect x="95" y="115" width="5" height="10" fill="#990000"/>
-    </svg>`;
-
-    // 🚀【核心升級】：一開啟網頁，先自動去抓同目錄下的 project.json
-    window.onload = () => {
-        initDefaultCanvas();
-        if(localStorage.getItem('icon_scale_v12')) {
-            let s = localStorage.getItem('icon_scale_v12');
-            document.getElementById('icon-scale-slider').value = s;
-            updateIconScale(s);
-        }
-        updateTransform();
-        
-        showStatus("⏳ 正在從伺服器載入廠區基本資料...");
-        fetch('project.json')
-            .then(response => {
-                if (!response.ok) { throw new Error('找不到預設的 project.json 檔案'); }
-                return response.json();
-            })
-            .then(bundle => {
-                if (bundle.mapImage) {
-                    currentMapDataUrl = bundle.mapImage;
-                    canvas.width = bundle.canvasW; canvas.height = bundle.canvasH;
-                    canvas.style.width = bundle.canvasStyleW; canvas.style.height = bundle.canvasStyleH;
-
-                    const img = new Image();
-                    img.onload = function() {
-                        ctx.clearRect(0, 0, canvas.width, canvas.height); 
-                        ctx.drawImage(img, 0, 0);
-                        
-                        // 優先讀取本地已巡檢快取，防止打勾紀錄因重開分頁消失
-                        let localCache = localStorage.getItem('current_ehs_project');
-                        if (localCache) {
-                            try {
-                                let localBundle = JSON.parse(localCache);
-                                if(localBundle.savedPoints && localBundle.savedPoints.length === bundle.savedPoints.length) {
-                                    points = localBundle.savedPoints;
-                                } else { points = bundle.savedPoints; }
-                            } catch(e) { points = bundle.savedPoints; }
-                        } else { points = bundle.savedPoints; }
-
-                        evaluateAllPointsExpiry();
-                        renderPoints();
-                        showStatus("✅ 廠區圖面與消防點位已自動加載！");
-                        checkUrlParamsForCheck();
-                    };
-                    img.src = bundle.mapImage;
-                }
-            })
-            .catch(err => {
-                console.log(err.message);
-                showStatus("⚠️ 未偵測到網路專案檔，改從本機瀏覽器讀取。");
-                if (localStorage.getItem('current_ehs_project')) {
-                    restoreProjectFromDataStr(localStorage.getItem('current_ehs_project'), () => {
-                        checkUrlParamsForCheck();
-                    });
-                }
-            });
-    };
-
-    function initDefaultCanvas() {
-        canvas.width = 1100; canvas.height = 650;
-        canvas.style.width = "1100px"; canvas.style.height = "650px";
-        ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = "#2c3e50"; ctx.font = "bold 22px sans-serif"; ctx.textAlign = "center";
-        ctx.fillText("歡迎使用！請還原您的巡檢專案檔 (.json)", canvas.width / 2, canvas.height / 2);
-    }
-
-    function restoreProjectFromDataStr(dataStr, callback) {
-        try {
-            const bundle = JSON.parse(dataStr);
-            if (bundle.mapImage) {
-                currentMapDataUrl = bundle.mapImage;
-                canvas.width = bundle.canvasW; canvas.height = bundle.canvasH;
-                canvas.style.width = bundle.canvasStyleW; canvas.style.height = bundle.canvasStyleH;
-                const img = new Image();
-                img.onload = function() {
-                    ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.drawImage(img, 0, 0);
-                    points = bundle.savedPoints || [];
-                    evaluateAllPointsExpiry(); renderPoints();
-                    if(callback) callback();
-                };
-                img.src = bundle.mapImage;
-            }
-        } catch(e) { console.error(e); }
-    }
-
-    // 載入新底圖
-    document.getElementById('upload').onchange = function(e) {
-        const file = e.target.files[0]; if(!file) return;
-        showStatus("⏳ 圖面轉譯中...");
-        if (file.type === "application/pdf") {
-            const reader = new FileReader();
-            reader.onload = function() {
-                const typedarray = new Uint8Array(this.result);
-                pdfjsLib.getDocument({ data: typedarray }).promise.then(function(pdf) {
-                    pdf.getPage(1).then(function(page) {
-                        const renderScale = 3.0;
-                        const viewportPage = page.getViewport({ scale: renderScale });
-                        canvas.width = viewportPage.width; canvas.height = viewportPage.height;
-                        canvas.style.width = (viewportPage.width / renderScale) + "px"; canvas.style.height = (viewportPage.height / renderScale) + "px";
-                        const renderContext = { canvasContext: ctx, viewport: viewportPage };
-                        page.render(renderContext).promise.then(() => {
-                            currentMapDataUrl = canvas.toDataURL('image/jpeg', 0.8);
-                            points = []; renderPoints(); showStatus("✅ PDF 底圖載入完成");
-                        });
-                    });
-                });
-            };
-            reader.readAsArrayBuffer(file);
-        } else {
-            const reader = new FileReader();
-            reader.onload = (event) => { 
-                const img = new Image();
-                img.onload = function() {
-                    canvas.width = img.width; canvas.height = img.height;
-                    canvas.style.width = img.width + "px"; canvas.style.height = img.height + "px";
-                    ctx.drawImage(img, 0, 0); currentMapDataUrl = canvas.toDataURL('image/jpeg', 0.8);
-                    points = []; renderPoints(); showStatus("✅ 圖檔載入完成");
-                };
-                img.src = event.target.result;
-            };
-            reader.readAsDataURL(file);
-        }
-    };
-
-    function exportProjectJSON() {
-        if (!currentMapDataUrl) { alert("無圖面無法儲存！"); return; }
-        let defaultName = "project"; // 固定命名為 project 方便網路託管
-        let userFileName = prompt("請確認專案儲存名稱（若要託管至 GitHub，請維持 project）：", defaultName);
-        if (!userFileName) return;
-
-        const bundleProject = {
-            mapImage: currentMapDataUrl,
-            canvasStyleW: canvas.style.width, canvasStyleH: canvas.style.height,
-            canvasW: canvas.width, canvasH: canvas.height,
-            savedPoints: points
-        };
-        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(bundleProject));
-        const downloadAnchor = document.createElement('a');
-        downloadAnchor.setAttribute("href", dataStr); downloadAnchor.setAttribute("download", userFileName.trim() + ".json");
-        document.body.appendChild(downloadAnchor); downloadAnchor.click(); downloadAnchor.remove();
-    }
-
-    document.getElementById('load-project').onchange = function(e) {
-        const file = e.target.files[0]; if (!file) return;
-        showStatus("⏳ 正在還原專案點位圖層...");
-        const reader = new FileReader();
-        reader.onload = function(evt) {
-            try {
-                restoreProjectFromDataStr(evt.target.result, () => {
-                    localStorage.setItem('current_ehs_project', evt.target.result);
-                    showStatus("📂 專案完全復原！共有 " + points.length + " 個定位標示點");
-                });
-            } catch (err) { alert("讀取失敗，請確認檔案格式。"); }
-        };
-        reader.readAsText(file);
-    };
-
-    viewport.onwheel = function(e) {
-        e.preventDefault();
-        if (e.ctrlKey) { mapX += (e.deltaY < 0 ? 55 : -55); updateTransform(); return; }
-        const rect = viewport.getBoundingClientRect();
-        const mouseX = e.clientX - rect.left, mouseY = e.clientY - rect.top;
-        const currentX = (mouseX - mapX) / mapScale, currentY = (mouseY - mapY) / mapScale;
-        mapScale = Math.min(Math.max(0.1, mapScale * (e.deltaY < 0 ? 1.1 : 1/1.1)), 10); 
-        mapX = mouseX - currentX * mapScale; mapY = mouseY - currentY * mapScale;
-        updateTransform();
-    };
-
-    function toggleAddMode(type) {
-        if (isAddMode && addType === type) {
-            isAddMode = false; addType = '';
-            document.getElementById('add-ext-btn').classList.remove('active');
-            document.getElementById('add-hyd-btn').classList.remove('active');
-            viewport.classList.remove('add-mode-active');
-        } else {
-            isAddMode = true; addType = type;
-            document.getElementById('add-ext-btn').classList.toggle('active', type === 'ext');
-            document.getElementById('add-hyd-btn').classList.toggle('active', type === 'hyd');
-            viewport.classList.add('add-mode-active');
-        }
-    }
-
-    document.getElementById('capture-area').onmousedown = function(e) {
-        if (!isAddMode || e.button !== 0 || isDraggingIcon || isPanning || e.ctrlKey) return;
-        const rect = canvas.getBoundingClientRect();
-        const canvasW = parseFloat(canvas.style.width) || canvas.width;
-        const canvasH = parseFloat(canvas.style.height) || canvas.height;
-        const clickX = (e.clientX - rect.left) / mapScale;
-        const clickY = (e.clientY - rect.top) / mapScale;
-
-        if (addType === 'ext') {
-            points.push({ 
-                id: Date.now(), kind: 'ext', pctX: clickX / canvasW, pctY: clickY / canvasH, 
-                name: `滅火器-${points.length+1}`, type: '10P 乾粉', mfgDate: '',
-                inspected: false, done: false, results: {}, notes: {} 
-            });
-        } else if (addType === 'hyd') {
-            points.push({
-                id: Date.now(), kind: 'hyd', pctX: clickX / canvasW, pctY: clickY / canvasH,
-                name: `室內消防栓-${points.length+1}`, hoseCount: '1', hoseDates: [''],
-                inspected: false, done: false, results: {}, notes: {}
-            });
-        }
-        isAddMode = false; addType = '';
-        document.getElementById('add-ext-btn').classList.remove('active');
-        document.getElementById('add-hyd-btn').classList.remove('active');
-        viewport.classList.remove('add-mode-active');
-        evaluateAllPointsExpiry(); renderPoints();
-        saveToLocalCache();
-    };
-
-    function renderPoints() {
-        const area = document.getElementById('capture-area');
-        document.querySelectorAll('.ext-wrapper').forEach(el => el.remove());
-        const canvasW = parseFloat(canvas.style.width) || canvas.width;
-        const canvasH = parseFloat(canvas.style.height) || canvas.height;
-
-        points.forEach(p => {
-            const wrapper = document.createElement('div');
-            wrapper.className = `ext-wrapper`;
-            wrapper.style.left = (p.pctX * canvasW) + 'px'; wrapper.style.top = (p.pctY * canvasH) + 'px';
-            
-            let statusHTML = '';
-            if (p.kind === 'ext') {
-                let expiry = calculateExpiryStatus(p.mfgDate, 3);
-                if (expiry.status === 'expired') statusHTML = `<div class="status-badge status-fail">【滅火器過期】</div>`;
-                else if (p.inspected) statusHTML = p.done ? `<div class="status-badge status-ok">【合格】</div>` : `<div class="status-badge status-fail">【不合格】</div>`;
-                wrapper.innerHTML = `${statusHTML}${extSvgString}<div class="info-label">${p.name}<br>${p.type}</div>`;
-            } else {
-                let hasExpiredHose = false;
-                if(p.hoseDates && p.hoseDates.length > 0) {
-                    p.hoseDates.forEach(d => {
-                        if(calculateExpiryStatus(d, 10).status === 'expired') hasExpiredHose = true;
-                    });
-                }
-                if (hasExpiredHose) statusHTML = `<div class="status-badge status-fail">【水帶逾期】</div>`;
-                else if (p.inspected) statusHTML = p.done ? `<div class="status-badge status-ok">【合格】</div>` : `<div class="status-badge status-fail">【不合格】</div>`;
-                
-                wrapper.innerHTML = `${statusHTML}${hydSvgString}<div class="info-label" style="background:rgba(186, 22, 22, 0.95); border:1px solid #ff7979;">${p.name}<br>水帶:${p.hoseCount}條</div>`;
-            }
-            
-            wrapper.onmousedown = function(e) {
-                if (e.button !== 0 || e.ctrlKey || isAddMode) return; 
-                e.stopPropagation(); isDraggingIcon = false;
-                let startClientX = e.clientX, startClientY = e.clientY;
-                let startLeft = p.pctX * canvasW, startTop = p.pctY * canvasH;
-
-                function onMouseMove(moveEv) {
-                    isDraggingIcon = true;
-                    let currentLeft = startLeft + (moveEv.clientX - startClientX) / mapScale;
-                    let currentTop = startTop + (moveEv.clientY - startClientY) / mapScale;
-                    p.pctX = currentLeft / canvasW; p.pctY = currentTop / canvasH;
-                    wrapper.style.left = currentLeft + 'px'; wrapper.style.top = currentTop + 'px';
-                }
-                document.addEventListener('mousemove', onMouseMove);
-                document.onmouseup = function() {
-                    document.removeEventListener('mousemove', onMouseMove);
-                    if(!isDraggingIcon) openModal(p); else { renderPoints(); saveToLocalCache(); }
-                    document.onmouseup = null; setTimeout(() => isDraggingIcon = false, 80);
-                };
-            };
-            area.appendChild(wrapper);
-        });
-    }
-
-    function generateHoseDateInputs() {
-        const count = parseInt(document.getElementById('m-hyd-count').value) || 1;
-        const box = document.getElementById('hose-dates-box');
-        box.innerHTML = '';
-        let savedDates = (currentPoint && currentPoint.hoseDates) ? currentPoint.hoseDates : [];
-
-        for(let i = 0; i < count; i++) {
-            const itemValue = savedDates[i] || '';
-            const div = document.createElement('div'); div.className = 'hose-date-item';
-            div.innerHTML = `<span>第 ${i+1} 條生產日:</span><input type="date" class="m-hyd-date-input" data-index="${i}" value="${itemValue}" onchange="checkHydHoseExpiryInModal()">`;
-            box.appendChild(div);
-        }
-        checkHydHoseExpiryInModal();
-    }
-
-    const extCheckItems = ["本體容器", "壓把", "安全插銷", "壓力計", "皮管", "鏽蝕"];
-    const hydCheckItems = ["箱體內乾淨", "箱體外無阻擋物", "水瞄狀況", "警示燈為恆亮", "箱體漏水"];
-
-    function openModal(p) {
-        currentPoint = p;
-        document.getElementById('m-name').value = p.name;
-        const listArea = document.getElementById('check-list-area'); listArea.innerHTML = ''; 
-
-        if (p.kind === 'ext') {
-            document.getElementById('modal-title').innerText = "🧯 滅火器資料與巡檢";
-            document.getElementById('ext-specs-area').style.display = 'block';
-            document.getElementById('hyd-specs-area').style.display = 'none';
-            document.getElementById('m-type').value = p.type;
-            document.getElementById('m-mfg-date').value = p.mfgDate || '';
-            extCheckItems.forEach((item, idx) => { addCheckRow(listArea, item, idx+1, p); });
-            listArea.innerHTML += `<div class="check-row" data-item="效期"><div class="check-header"><span>7. 是否過期(自動對照)</span><div class="ox-group"><button class="btn-o" id="auto-expiry-o" disabled>O</button><button class="btn-x" id="auto-expiry-x" disabled>X</button></div></div><input type="text" id="auto-expiry-note" class="fail-input" readonly style="background:#f8f9fa;"></div>`;
-            checkExpiryInModal();
-        } else {
-            document.getElementById('modal-title').innerText = "🏠 室內消防栓箱巡檢";
-            document.getElementById('ext-specs-area').style.display = 'none';
-            document.getElementById('hyd-specs-area').style.display = 'block';
-            document.getElementById('m-hyd-count').value = p.hoseCount || '1';
-            generateHoseDateInputs();
-            hydCheckItems.forEach((item, idx) => { addCheckRow(listArea, item, idx+1, p); });
-        }
-        document.getElementById('modal').style.display = 'block'; document.getElementById('overlay').style.display = 'block';
-    }
-
-    function addCheckRow(targetEl, item, order, p) {
-        const res = p.results[item] || ''; const note = p.notes[item] || '';
-        const html = `
-            <div class="check-row" data-item="${item}">
-                <div class="check-header">
-                    <span>${order}. ${item}</span>
-                    <div class="ox-group">
-                        <button class="btn-o ${res === 'O' ? 'active-o' : ''}" onclick="setOX(this, 'O')">O</button>
-                        <button class="btn-x ${res === 'X' ? 'active-x' : ''}" onclick="setOX(this, 'X')">X</button>
-                    </div>
-                </div>
-                <input type="text" class="fail-input" style="display:${res === 'X' ? 'block' : 'none'};" value="${note}" placeholder="不合格原因描述...">
-            </div>`;
-        targetEl.innerHTML += html;
-    }
-
-    function saveCheck() {
-        currentPoint.name = document.getElementById('m-name').value || "未命名位置";
-        let allOk = true, anyMarked = false;
-
-        if (currentPoint.kind === 'ext') {
-            currentPoint.type = document.getElementById('m-type').value;
-            currentPoint.mfgDate = document.getElementById('m-mfg-date').value;
-            document.querySelectorAll('.check-row').forEach(row => {
-                const item = row.getAttribute('data-item'); if(item === '效期') return;
-                const isO = row.querySelector('.btn-o').classList.contains('active-o');
-                const isX = row.querySelector('.btn-x').classList.contains('active-x');
-                if(isO || isX) anyMarked = true;
-                currentPoint.results[item] = isO ? 'O' : (isX ? 'X' : '');
-                currentPoint.notes[item] = isX ? row.querySelector('.fail-input').value : '';
-                if(!isO) allOk = false;
-            });
-            if (calculateExpiryStatus(currentPoint.mfgDate, 3).status === 'expired') { allOk = false; anyMarked = true; }
-        } else {
-            currentPoint.hoseCount = document.getElementById('m-hyd-count').value;
-            let dates = [];
-            document.querySelectorAll('.m-hyd-date-input').forEach(input => { dates.push(input.value); });
-            currentPoint.hoseDates = dates;
-            
-            let hasExpiredHose = false;
-            dates.forEach(d => {
-                if(d) { anyMarked = true; if(calculateExpiryStatus(d, 10).status === 'expired') hasExpiredHose = true; }
-            });
-
-            document.querySelectorAll('.check-row').forEach(row => {
-                const item = row.getAttribute('data-item');
-                const isO = row.querySelector('.btn-o').classList.contains('active-o');
-                const isX = row.querySelector('.btn-x').classList.contains('active-x');
-                if(isO || isX) anyMarked = true;
-                currentPoint.results[item] = isO ? 'O' : (isX ? 'X' : '');
-                currentPoint.notes[item] = isX ? row.querySelector('.fail-input').value : '';
-                if(!isO) allOk = false;
-            });
-            if(hasExpiredHose) allOk = false;
-        }
-
-        currentPoint.inspected = anyMarked; currentPoint.done = allOk;
-        closeModal();
-        saveToLocalCache();
-    }
-
-    function saveToLocalCache() {
-        const bundleProject = {
-            mapImage: currentMapDataUrl,
-            canvasStyleW: canvas.style.width, canvasStyleH: canvas.style.height,
-            canvasW: canvas.width, canvasH: canvas.height,
-            savedPoints: points
-        };
-        localStorage.setItem('current_ehs_project', JSON.stringify(bundleProject));
-    }
-
-    function calculateExpiryStatus(dateString, yearsLimit) {
-        if (!dateString) return { status: 'normal' };
-        const today = new Date(); today.setHours(0,0,0,0);
-        const mfgDate = new Date(dateString); mfgDate.setHours(0,0,0,0);
-        const expiryDate = new Date(mfgDate); expiryDate.setFullYear(expiryDate.getFullYear() + yearsLimit);
-        if (today >= expiryDate) return { status: 'expired' };
-        return { status: 'normal' };
-    }
-
-    function checkHydHoseExpiryInModal() {
-        const msgDiv = document.getElementById('hyd-expiry-msg'); if(!msgDiv) return;
-        let isExpired = false;
-        document.querySelectorAll('.m-hyd-date-input').forEach(input => {
-            if(input.value && calculateExpiryStatus(input.value, 10).status === 'expired') isExpired = true;
-        });
-        if(isExpired) { msgDiv.innerText = "❌ 警告：內含已超過10年法定年限之水帶！"; msgDiv.style.color = "#e74c3c"; }
-        else { msgDiv.innerText = "  水帶效期均合格"; msgDiv.style.color = "#27ae60"; }
-    }
-
-    function evaluateAllPointsExpiry() {
-        points.forEach(p => {
-            if (p.kind === 'ext' && p.mfgDate) {
-                if (calculateExpiryStatus(p.mfgDate, 3).status === 'expired') { p.results['效期'] = 'X'; p.inspected = true; p.done = false; }
-            } else if (p.kind === 'hyd' && p.hoseDates) {
-                let expired = false;
-                p.hoseDates.forEach(d => { if(calculateExpiryStatus(d, 10).status === 'expired') expired = true; });
-                if(expired) { p.inspected = true; p.done = false; }
-            }
-        });
-    }
-
-    function checkExpiryInModal() {
-        const dateVal = document.getElementById('m-mfg-date').value;
-        const msgDiv = document.getElementById('modal-expiry-msg');
-        const oBtn = document.getElementById('auto-expiry-o'); const xBtn = document.getElementById('auto-expiry-x');
-        const noteInput = document.getElementById('auto-expiry-note'); if(!oBtn) return;
-        oBtn.classList.remove('active-o'); xBtn.classList.remove('active-x'); noteInput.style.display = 'none';
-        if (!dateVal) return;
-        const res = calculateExpiryStatus(dateVal, 3);
-        if (res.status === 'expired') {
-            msgDiv.innerText = "❌ 已超過 3 年時效！"; msgDiv.style.color = "#e74c3c";
-            xBtn.classList.add('active-x'); noteInput.style.display = 'block'; noteInput.value = "自動判定：已過3年法定年限";
-        } else { msgDiv.innerText = " 效期安全"; msgDiv.style.color = "#27ae60"; oBtn.classList.add('active-o'); }
-    }
-
-    // 🎯 檢查網址參數並定位彈窗 (QR Code 連動)
-    function checkUrlParamsForCheck() {
-        const urlParams = new URLSearchParams(window.location.search);
-        const pointId = urlParams.get('pointId');
-        if (pointId && points.length > 0) {
-            const target = points.find(p => p.id == pointId);
-            if (target) {
-                // 自動平移聚焦，並彈出該設施巡檢窗
-                setTimeout(() => { openModal(target); focusOnPoint(target); }, 600);
-            } else {
-                alert("⚠️ 找不到該 QR Code 對應的消防設施，請確認專案檔是否為最新版本。");
-            }
-        }
-    }
-
-    // 聚焦定位畫面中央
-    function focusOnPoint(p) {
-        const canvasW = parseFloat(canvas.style.width) || canvas.width;
-        const canvasH = parseFloat(canvas.style.height) || canvas.height;
-        const pX = p.pctX * canvasW; const pY = p.pctY * canvasH;
-        mapScale = 1.5; 
-        mapX = (viewport.clientWidth / 2) - (pX * mapScale);
-        mapY = (viewport.clientHeight / 2) - (pY * mapScale);
-        updateTransform();
-    }
-
-    viewport.oncontextmenu = (e) => e.preventDefault(); 
-    viewport.onmousedown = function(e) {
-        if (isAddMode) return;
-        if (e.button === 2 || e.button === 1 || (e.button === 0 && e.ctrlKey)) { 
-            isPanning = true; startX = e.clientX - mapX; startY = e.clientY - mapY; e.preventDefault();
-        }
-    };
-    document.addEventListener('mousemove', function(e) { if (!isPanning) return; mapX = e.clientX - startX; mapY = e.clientY - startY; updateTransform(); });
-    document.addEventListener('mouseup', function() { if (isPanning) isPanning = false; });
-
-    function updateTransform() { container.style.transform = `translate(${mapX}px, ${mapY}px) scale(${mapScale})`; }
-    function updateIconScale(val) { document.documentElement.style.setProperty('--ext-scale', val); document.getElementById('scale-val').innerText = Math.round(val * 100) + '%'; localStorage.setItem('icon_scale_v12', val); }
-    function setOX(btn, status) { const row = btn.closest('.check-row'); row.querySelectorAll('button').forEach(b => b.classList.remove('active-o', 'active-x')); btn.classList.add(status === 'O' ? 'active-o' : 'active-x'); row.querySelector('.fail-input').style.display = (status === 'X') ? 'block' : 'none'; }
-    function showStatus(text) { statusTxt.innerText = text; }
-
-    function exportJPG() {
-        showStatus("⏳ 正在產生超高解析度 JPG 圖面...");
-        const oldScale = mapScale, oldX = mapX, oldY = mapY; 
-        mapScale = 1; mapX = 0; mapY = 0; updateTransform();
-        setTimeout(() => {
-            html2canvas(document.getElementById('capture-area'), { useCORS: true, scale: 4, logging: false, imageTimeout: 0, backgroundColor: "#ffffff" }).then(canvasRes => {
-                const link = document.createElement('a'); link.download = '綜合消防設施巡檢圖_高解析.jpg'; link.href = canvasRes.toDataURL('image/jpeg', 0.95); link.click();
-                mapScale = oldScale; mapX = oldX; mapY = oldY; updateTransform();
-                showStatus("✅ 高解析度 JPG 導出成功！");
-            }).catch(err => { alert("高解析度渲染失敗。"); mapScale = oldScale; mapX = oldX; mapY = oldY; updateTransform(); });
-        }, 400);
-    }
-
-    function exportPDF() {
-        showStatus("⏳ 正在封裝超高解析度 PDF...");
-        const oldScale = mapScale, oldX = mapX, oldY = mapY; 
-        mapScale = 1; mapX = 0; mapY = 0; updateTransform();
-        setTimeout(() => {
-            html2canvas(document.getElementById('capture-area'), { useCORS: true, scale: 4, logging: false, imageTimeout: 0 }).then(canvasRes => {
-                const { jsPDF } = window.jspdf;
-                const pdf = new jsPDF('l', 'px', [canvasRes.width / 4, canvasRes.height / 4]);
-                pdf.addImage(canvasRes.toDataURL('image/png'), 'PNG', 0, 0, canvasRes.width / 4, canvasRes.height / 4, undefined, 'FAST');
-                pdf.save("綜合消防設施巡檢圖_超高解析.pdf");
-                mapScale = oldScale; mapX = oldX; mapY = oldY; updateTransform();
-                showStatus("✅ 高解析度 PDF 導出成功！");
-            }).catch(err => { alert("高解析度 PDF 建立失敗。"); mapScale = oldScale; mapX = oldX; mapY = oldY; updateTransform(); });
-        }, 400);
-    }
-
-    function exportExcel() {
-        let csv = "\ufeff設施種類,設備名稱,規格/水帶量,製造/水帶日期清單,巡檢狀態,異常摘要\n";
-        points.forEach(p => {
-            let typeStr = p.kind === 'ext' ? '滅火器' : '室內消防栓箱';
-            let specStr = p.kind === 'ext' ? p.type : `水帶 ${p.hoseCount} 條`;
-            let dateStr = p.kind === 'ext' ? (p.mfgDate || '未填') : (p.hoseDates || []).join(' | ');
-            let stateStr = p.done ? '合格' : '不合格'; if(!p.inspected) stateStr = '未巡檢';
-            let notes = []; for(let key in p.notes) if(p.notes[key]) notes.push(`${key}:${p.notes[key]}`);
-            csv += `${typeStr},${p.name},${specStr},${dateStr},${stateStr},"${notes.join(' / ')}"\n`;
-        });
-        const blob = new Blob([csv], {type: 'text/csv'}); const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob); a.download = '廠區綜合消防巡檢紀錄報表.csv'; a.click();
-    }
-
-    function deletePoint() { if(confirm('確定要刪除此標示？')) { points = points.filter(p => p.id !== currentPoint.id); closeModal(); } }
-    function closeModal() { document.getElementById('modal').style.display='none'; document.getElementById('overlay').style.display='none'; evaluateAllPointsExpiry(); renderPoints(); }
-</script>
+<p class="p1">&lt;!DOCTYPE html&gt;</p>
+<p class="p1">&lt;html lang="zh-TW"&gt;</p>
+<p class="p1">&lt;head&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;meta charset="UTF-8"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;title&gt;廠區消防安全巡檢規劃系統 - 網路自動載入版&lt;/title&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" crossorigin="anonymous"&gt;&lt;/script&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" crossorigin="anonymous"&gt;&lt;/script&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"&gt;&lt;/script&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;style&gt;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>:root { --primary: #e74c3c; --success: #27ae60; --warning: #e67e22; --dark: #2c3e50; --ext-scale: 1.0; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>* { box-sizing: border-box; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>body { font-family: "Microsoft JhengHei", sans-serif; margin: 0; background: #f0f2f5; display: flex; flex-direction: column; height: 100vh; overflow: hidden; user-select: none; }</p>
+<p class="p2"><span class="Apple-converted-space">        </span></p>
+<p class="p1"><span class="Apple-converted-space">        </span>/* 工具列 */</p>
+<p class="p1"><span class="Apple-converted-space">        </span>#toolbar { background: var(--dark); color: white; padding: 10px 20px; display: flex; gap: 12px; align-items: center; z-index: 1000; flex-wrap: wrap; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.btn { padding: 8px 14px; border-radius: 4px; border: none; cursor: pointer; font-weight: bold; transition: 0.2s; display: inline-flex; align-items: center; gap: 5px; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.btn:hover { opacity: 0.9; transform: translateY(-1px); }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.btn-upload { background: #f1c40f; color: #333; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.btn-project-save { background: #9b59b6; color: white; border: 1px solid #fff; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.btn-project-load { background: #2cf3e0; color: #333; font-weight: bold; box-shadow: 0 0 10px rgba(44,243,224,0.5); }</p>
+<p class="p2"><span class="Apple-converted-space">        </span></p>
+<p class="p1"><span class="Apple-converted-space">        </span>.btn-add-ext { background: #e74c3c; color: white; border: 2px solid #fff; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.btn-add-ext.active { background: #fff; color: #e74c3c; box-shadow: 0 0 15px #e74c3c; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.btn-add-hyd { background: #d35400; color: white; border: 2px solid #fff; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.btn-add-hyd.active { background: #fff; color: #d35400; box-shadow: 0 0 15px #d35400; }</p>
+<p class="p2"><span class="Apple-converted-space">        </span></p>
+<p class="p1"><span class="Apple-converted-space">        </span>.btn-jpg { background: #2ecc71; color: white; font-weight: bold; box-shadow: 0 4px 6px rgba(46,204,113,0.3); }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.btn-pdf { background: #e67e22; color: white; font-weight: bold; box-shadow: 0 4px 6px rgba(230,126,34,0.3); }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.btn-excel { background: #3498db; color: white; }</p>
+<p class="p2"><span class="Apple-converted-space">        </span></p>
+<p class="p1"><span class="Apple-converted-space">        </span>.range-container { display: flex; align-items: center; gap: 8px; font-size: 14px; background: rgba(255,255,255,0.1); padding: 5px 10px; border-radius: 4px; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>#save-status { font-size: 13px; color: #2ecc71; font-weight: bold; margin-left: auto; display: inline-flex; align-items: center; gap: 4px; }</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">        </span>/* 工作區 */</p>
+<p class="p1"><span class="Apple-converted-space">        </span>#viewport { flex: 1; overflow: hidden; position: relative; background: #7f8c8d; cursor: grab; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>#viewport:active { cursor: grabbing; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>#viewport.add-mode-active { cursor: crosshair !important; }</p>
+<p class="p2"><span class="Apple-converted-space">        </span></p>
+<p class="p1"><span class="Apple-converted-space">        </span>#pan-zoom-container { position: absolute; top: 0; left: 0; transform-origin: 0 0; display: inline-block; z-index: 1; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>#capture-area { position: relative; display: inline-block; background: white; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>#bg-canvas { display: block; max-width: none; background: #fff; box-shadow: 0 0 20px rgba(0,0,0,0.3); }</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">        </span>/* 圖標基本樣式 */</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.ext-wrapper {<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">            </span>position: absolute; cursor: move; display: flex; flex-direction: column; align-items: center;<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">            </span>transform: translate(-50%, -85%) scale(var(--ext-scale)); z-index: 9999; transform-origin: center bottom;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>pointer-events: auto;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>}</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.ext-svg-icon { width: 38px; height: 55px; filter: drop-shadow(0px 3px 5px rgba(0,0,0,0.4)); }</p>
+<p class="p2"><span class="Apple-converted-space">        </span></p>
+<p class="p1"><span class="Apple-converted-space">        </span>.status-badge {</p>
+<p class="p1"><span class="Apple-converted-space">            </span>position: absolute; top: -12px; right: -35px; padding: 2px 6px; border-radius: 10px;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>font-size: 11px; font-weight: bold; white-space: nowrap; box-shadow: 0 2px 4px rgba(0,0,0,0.2);</p>
+<p class="p1"><span class="Apple-converted-space">            </span>z-index: 10000;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>}</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.status-ok { background: var(--success); color: white; border: 1px solid white; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.status-warning { background: var(--warning); color: white; border: 1px solid white; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.status-fail { background: #000; color: #ff3f34; border: 1px solid #ff3f34; }</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">        </span>.info-label {<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">            </span>margin-top: 4px; background: rgba(0,0,0,0.85); color: white; padding: 3px 8px;<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">            </span>border-radius: 4px; font-size: 11px; text-align: center; line-height: 1.3;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>white-space: nowrap; box-shadow: 0 2px 5px rgba(0,0,0,0.4);</p>
+<p class="p1"><span class="Apple-converted-space">            </span>border: 1px solid rgba(255,255,255,0.1);</p>
+<p class="p1"><span class="Apple-converted-space">        </span>}</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">        </span>/* 彈窗 */</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 20000; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>#modal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">                 </span>background: white; border-radius: 12px; padding: 20px; z-index: 20001; width: 380px; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.3); }</p>
+<p class="p2"><span class="Apple-converted-space">        </span></p>
+<p class="p1"><span class="Apple-converted-space">        </span>.check-row { border-bottom: 1px solid #eee; padding: 8px 0; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.check-header { display: flex; justify-content: space-between; align-items: center; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.ox-group button { width: 45px; height: 32px; border: 1px solid #ccc; cursor: pointer; background: #eee; font-weight: bold; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.active-o { background: var(--success) !important; color: white; border-color: #1e8449 !important; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.active-x { background: #000 !important; color: #ff3f34 !important; border-color: #ff3f34 !important; }</p>
+<p class="p2"><span class="Apple-converted-space">        </span></p>
+<p class="p1"><span class="Apple-converted-space">        </span>.fail-input { width: 100%; margin-top: 5px; padding: 5px; border: 1px solid #e74c3c; border-radius: 3px; display: none; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.save-btn { width: 100%; padding: 12px; background: var(--dark); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 16px; margin-top: 15px; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>input[type="text"], input[type="date"], select { padding: 6px; border: 1px solid #ddd; border-radius: 4px; width: 100%; box-sizing: border-box; }</p>
+<p class="p2"><span class="Apple-converted-space">        </span></p>
+<p class="p1"><span class="Apple-converted-space">        </span>.hose-date-container { background: #eef2f7; padding: 8px; border-radius: 6px; margin-top: 5px; display: flex; flex-direction: column; gap: 5px; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.hose-date-item { display: flex; align-items: center; justify-content: space-between; font-size: 13px; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.hose-date-item input { width: 60% !important; }</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;/style&gt;</p>
+<p class="p1">&lt;/head&gt;</p>
+<p class="p1">&lt;body&gt;</p>
+<p class="p2"><br></p>
+<p class="p1">&lt;div id="toolbar"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;div style="font-size: 1.1em; font-weight: bold;"&gt;🚒 廠區消防安全巡檢規劃系統&lt;/div&gt;</p>
+<p class="p2"><span class="Apple-converted-space">    </span></p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;label class="btn btn-project-load"&gt;📂 1. 開啟巡檢專案檔 (.json)&lt;input type="file" id="load-project" accept=".json" style="display:none;"&gt;&lt;/label&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;label class="btn btn-upload"&gt;📁 新建圖面 (PDF/圖檔)&lt;input type="file" id="upload" accept="application/pdf, image/*" style="display:none;"&gt;&lt;/label&gt;</p>
+<p class="p2"><span class="Apple-converted-space">    </span></p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;button class="btn btn-add-ext" id="add-ext-btn" onclick="toggleAddMode('ext')"&gt;🧯 新增滅火器&lt;/button&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;button class="btn btn-add-hyd" id="add-hyd-btn" onclick="toggleAddMode('hyd')"&gt;🏠 新增室內消防栓箱&lt;/button&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;button class="btn btn-project-save" onclick="exportProjectJSON()"&gt;💾 3. 另存巡檢專案檔&lt;/button&gt;</p>
+<p class="p2"><span class="Apple-converted-space">    </span></p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;button class="btn btn-jpg" onclick="exportJPG()"&gt;🖼️ 輸出高畫質 JPG&lt;/button&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;button class="btn btn-pdf" onclick="exportPDF()"&gt;📄 輸出高畫質 PDF&lt;/button&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;button class="btn btn-excel" onclick="exportExcel()"&gt;📊 匯出 Excel 報表&lt;/button&gt;</p>
+<p class="p2"><span class="Apple-converted-space">    </span></p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;div class="range-container"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>&lt;label&gt;📐 圖標大小:&lt;/label&gt;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>&lt;input type="range" id="icon-scale-slider" min="0.1" max="2.5" step="0.05" value="1.0" oninput="updateIconScale(this.value)"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>&lt;span id="scale-val"&gt;100%&lt;/span&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;/div&gt;</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;div id="save-status"&gt;⚙️ 系統就緒&lt;/div&gt;</p>
+<p class="p1">&lt;/div&gt;</p>
+<p class="p2"><br></p>
+<p class="p1">&lt;div id="viewport"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;div id="pan-zoom-container"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>&lt;div id="capture-area"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;canvas id="bg-canvas"&gt;&lt;/canvas&gt;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;/div&gt;</p>
+<p class="p1">&lt;/div&gt;</p>
+<p class="p2"><br></p>
+<p class="p1">&lt;div class="overlay" id="overlay" onclick="closeModal()"&gt;&lt;/div&gt;</p>
+<p class="p2"><br></p>
+<p class="p1">&lt;div id="modal"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;h3 id="modal-title" style="margin-top:0; color:var(--dark);"&gt;設備基本資料&lt;/h3&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;div style="margin-bottom:15px; background: #f8f9fa; padding: 12px; border-radius: 8px; display: flex; flex-direction: column; gap: 8px;"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>&lt;label&gt;位置/設備名稱：&lt;input type="text" id="m-name" placeholder="請輸入自訂名稱"&gt;&lt;/label&gt;</p>
+<p class="p2"><span class="Apple-converted-space">        </span></p>
+<p class="p1"><span class="Apple-converted-space">        </span>&lt;div id="ext-specs-area"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;label&gt;設備規格：</p>
+<p class="p1"><span class="Apple-converted-space">                </span>&lt;select id="m-type"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>&lt;option&gt;10P 乾粉&lt;/option&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>&lt;option&gt;20P 乾粉&lt;/option&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>&lt;option&gt;5P CO2&lt;/option&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>&lt;option&gt;10P CO2&lt;/option&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                </span>&lt;/select&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;/label&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;label style="margin-top:5px; display:block;"&gt;製造日期：&lt;input type="date" id="m-mfg-date" onchange="checkExpiryInModal()"&gt;&lt;/label&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;div id="modal-expiry-msg" style="font-size: 12px; font-weight: bold; margin-top: 2px;"&gt;&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>&lt;/div&gt;</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">        </span>&lt;div id="hyd-specs-area" style="display:none;"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;label&gt;水帶數量 (條)：</p>
+<p class="p1"><span class="Apple-converted-space">                </span>&lt;select id="m-hyd-count" onchange="generateHoseDateInputs()"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>&lt;option value="1"&gt;1 條&lt;/option&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>&lt;option value="2"&gt;2 條&lt;/option&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>&lt;option value="3"&gt;3 條&lt;/option&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>&lt;option value="4"&gt;4 條&lt;/option&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                </span>&lt;/select&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;/label&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;div style="font-size:13px; font-weight:bold; margin-top:5px; color:#c0392b;"&gt;水帶製造日期 (法定年限10年)：&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;div id="hose-dates-box" class="hose-date-container"&gt;&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;div id="hyd-expiry-msg" style="font-size: 12px; font-weight: bold; margin-top: 2px;"&gt;&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;/div&gt;</p>
+<p class="p2"><span class="Apple-converted-space">    </span></p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;div id="check-list-area"&gt;&lt;/div&gt;</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;button class="save-btn" onclick="saveCheck()"&gt;儲存巡檢紀錄&lt;/button&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;button onclick="deletePoint()" style="width:100%; margin-top:10px; background:none; border:none; color:#ae1c1c; cursor:pointer; font-weight:bold;"&gt;✕ 刪除此點位&lt;/button&gt;</p>
+<p class="p1">&lt;/div&gt;</p>
+<p class="p2"><br></p>
+<p class="p1">&lt;script&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>try {</p>
+<p class="p1"><span class="Apple-converted-space">        </span>pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';</p>
+<p class="p1"><span class="Apple-converted-space">    </span>} catch(err) { console.error("PDF.js 加載失敗"); }</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">    </span>let points = [];<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">    </span>let currentPoint = null;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>let isDraggingIcon = false;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>let isAddMode = false; <span class="Apple-converted-space">     </span></p>
+<p class="p1"><span class="Apple-converted-space">    </span>let addType = '';<span class="Apple-converted-space">           </span></p>
+<p class="p1"><span class="Apple-converted-space">    </span>let currentMapDataUrl = "";<span class="Apple-converted-space"> </span></p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">    </span>let mapScale = 1, mapX = 0, mapY = 0;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>let isPanning = false, startX, startY;</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">    </span>const viewport = document.getElementById('viewport');</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const container = document.getElementById('pan-zoom-container');</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const canvas = document.getElementById('bg-canvas');</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const ctx = canvas.getContext('2d');</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const statusTxt = document.getElementById('save-status');</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">    </span>// 滅火器 SVG 圖示</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const extSvgString = `&lt;svg class="ext-svg-icon" viewBox="0 0 100 200" xmlns="http://www.w3.org/2000/svg"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>&lt;path d="M48,32 L95,8 C95,8 90,0 80,4 L48,22 Z" fill="#4a4a4a"/&gt;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>&lt;path d="M48,35 L88,35 C88,35 88,25 78,27 L48,27 Z" fill="#5a5a5a"/&gt;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>&lt;circle cx="48" cy="30" r="12" fill="#e0e0e0" stroke="#4a4a4a" stroke-width="2"/&gt;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>&lt;path d="M38,30 A10,10 0 0,1 58,30" fill="none" stroke="#e74c3c" stroke-width="3"/&gt;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>&lt;line x1="48" y1="30" x2="48" y2="22" stroke="#4a4a4a" stroke-width="2"/&gt;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>&lt;path d="M40,26 C15,26 15,130 22,130" fill="none" stroke="#4a4a4a" stroke-width="8" stroke-linecap="round"/&gt;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>&lt;polygon points="12,130 32,130 38,170 6,170" fill="#4a4a4a"/&gt;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>&lt;rect x="40" y="38" width="16" height="12" fill="#bbb"/&gt;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>&lt;rect x="34" y="48" width="52" height="140" rx="24" fill="#e74c3c"/&gt;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>&lt;rect x="40" y="85" width="40" height="82" rx="6" fill="#f5f5f5"/&gt;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>&lt;line x1="46" y1="98" x2="74" y2="98" stroke="#4a4a4a" stroke-width="4" stroke-linecap="round"/&gt;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>&lt;line x1="46" y1="108" x2="74" y2="108" stroke="#4a4a4a" stroke-width="4" stroke-linecap="round"/&gt;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>&lt;path d="M60,120 C50,132 50,154 60,158 C70,154 70,132 60,120 Z" fill="#e74c3c"/&gt;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>&lt;path d="M60,132 C54,140 54,152 60,155 C66,152 66,140 60,132 Z" fill="#f1c40f"/&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;/svg&gt;`;</p>
+<p class="p2"><span class="Apple-converted-space">    </span></p>
+<p class="p1"><span class="Apple-converted-space">    </span>// 室內消防栓箱 SVG 圖示</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const hydSvgString = `&lt;svg class="ext-svg-icon" viewBox="0 0 100 160" xmlns="http://www.w3.org/2000/svg"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>&lt;rect x="5" y="5" width="90" height="150" fill="#b30000" rx="2" stroke="#7a0000" stroke-width="2"/&gt;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>&lt;rect x="8" y="8" width="84" height="144" fill="#d60000" rx="1"/&gt;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>&lt;line x1="8" y1="42" x2="92" y2="42" stroke="#7a0000" stroke-width="1.5"/&gt;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>&lt;circle cx="26" cy="25" r="11" fill="#b30000" stroke="#7a0000" stroke-width="1"/&gt;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>&lt;circle cx="26" cy="25" r="7" fill="#1a1a1a"/&gt;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>&lt;rect x="22" y="21" width="8" height="2" fill="#fff"/&gt;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>&lt;text x="26" y="27" font-family="sans-serif" font-size="3" fill="#fff" text-anchor="middle" font-weight="bold"&gt;PUSH&lt;/text&gt;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>&lt;circle cx="50" cy="25" r="7" fill="#ff4d4d" stroke="#ffb3b3" stroke-width="1"/&gt;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>&lt;circle cx="50" cy="25" r="4" fill="#ff9999"/&gt;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>&lt;circle cx="74" cy="25" r="8" fill="none" stroke="#7a0000" stroke-dasharray="2,2" stroke-width="1.5"/&gt;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>&lt;circle cx="74" cy="25" r="5" fill="none" stroke="#7a0000" stroke-dasharray="1,1" stroke-width="1"/&gt;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>&lt;circle cx="74" cy="25" r="1.5" fill="#1a1a1a"/&gt;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>&lt;rect x="12" y="48" width="76" height="98" fill="#c40000" rx="1"/&gt;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>&lt;path d="M12,48 L22,48 L22,146 L12,146 Z" fill="#990000" opacity="0.3"/&gt;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>&lt;text x="50" y="98" font-family="Georgia, sans-serif" font-size="11" font-weight="bold" fill="#ffffff" text-anchor="middle" letter-spacing="0.5"&gt;HYDRANT&lt;/text&gt;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>&lt;rect x="95" y="45" width="5" height="10" fill="#990000"/&gt;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>&lt;rect x="95" y="115" width="5" height="10" fill="#990000"/&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;/svg&gt;`;</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">    </span>// 🚀【核心升級】：一開啟網頁，先自動去抓同目錄下的 project.json</p>
+<p class="p1"><span class="Apple-converted-space">    </span>window.onload = () =&gt; {</p>
+<p class="p1"><span class="Apple-converted-space">        </span>initDefaultCanvas();</p>
+<p class="p1"><span class="Apple-converted-space">        </span>if(localStorage.getItem('icon_scale_v12')) {</p>
+<p class="p1"><span class="Apple-converted-space">            </span>let s = localStorage.getItem('icon_scale_v12');</p>
+<p class="p1"><span class="Apple-converted-space">            </span>document.getElementById('icon-scale-slider').value = s;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>updateIconScale(s);</p>
+<p class="p1"><span class="Apple-converted-space">        </span>}</p>
+<p class="p1"><span class="Apple-converted-space">        </span>updateTransform();</p>
+<p class="p2"><span class="Apple-converted-space">        </span></p>
+<p class="p1"><span class="Apple-converted-space">        </span>showStatus("⏳ 正在從伺服器載入廠區基本資料...");</p>
+<p class="p1"><span class="Apple-converted-space">        </span>fetch('project.json')</p>
+<p class="p1"><span class="Apple-converted-space">            </span>.then(response =&gt; {</p>
+<p class="p1"><span class="Apple-converted-space">                </span>if (!response.ok) { throw new Error('找不到預設的 project.json 檔案'); }</p>
+<p class="p1"><span class="Apple-converted-space">                </span>return response.json();</p>
+<p class="p1"><span class="Apple-converted-space">            </span>})</p>
+<p class="p1"><span class="Apple-converted-space">            </span>.then(bundle =&gt; {</p>
+<p class="p1"><span class="Apple-converted-space">                </span>if (bundle.mapImage) {</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>currentMapDataUrl = bundle.mapImage;</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>canvas.width = bundle.canvasW; canvas.height = bundle.canvasH;</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>canvas.style.width = bundle.canvasStyleW; canvas.style.height = bundle.canvasStyleH;</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">                    </span>const img = new Image();</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>img.onload = function() {</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>ctx.clearRect(0, 0, canvas.width, canvas.height);<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">                        </span>ctx.drawImage(img, 0, 0);</p>
+<p class="p2"><span class="Apple-converted-space">                        </span></p>
+<p class="p1"><span class="Apple-converted-space">                        </span>// 優先讀取本地已巡檢快取，防止打勾紀錄因重開分頁消失</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>let localCache = localStorage.getItem('current_ehs_project');</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>if (localCache) {</p>
+<p class="p1"><span class="Apple-converted-space">                            </span>try {</p>
+<p class="p1"><span class="Apple-converted-space">                                </span>let localBundle = JSON.parse(localCache);</p>
+<p class="p1"><span class="Apple-converted-space">                                </span>if(localBundle.savedPoints &amp;&amp; localBundle.savedPoints.length === bundle.savedPoints.length) {</p>
+<p class="p1"><span class="Apple-converted-space">                                    </span>points = localBundle.savedPoints;</p>
+<p class="p1"><span class="Apple-converted-space">                                </span>} else { points = bundle.savedPoints; }</p>
+<p class="p1"><span class="Apple-converted-space">                            </span>} catch(e) { points = bundle.savedPoints; }</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>} else { points = bundle.savedPoints; }</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">                        </span>evaluateAllPointsExpiry();</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>renderPoints();</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>showStatus("✅ 廠區圖面與消防點位已自動加載！");</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>checkUrlParamsForCheck();</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>};</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>img.src = bundle.mapImage;</p>
+<p class="p1"><span class="Apple-converted-space">                </span>}</p>
+<p class="p1"><span class="Apple-converted-space">            </span>})</p>
+<p class="p1"><span class="Apple-converted-space">            </span>.catch(err =&gt; {</p>
+<p class="p1"><span class="Apple-converted-space">                </span>console.log(err.message);</p>
+<p class="p1"><span class="Apple-converted-space">                </span>showStatus("⚠️ 未偵測到網路專案檔，改從本機瀏覽器讀取。");</p>
+<p class="p1"><span class="Apple-converted-space">                </span>if (localStorage.getItem('current_ehs_project')) {</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>restoreProjectFromDataStr(localStorage.getItem('current_ehs_project'), () =&gt; {</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>checkUrlParamsForCheck();</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>});</p>
+<p class="p1"><span class="Apple-converted-space">                </span>}</p>
+<p class="p1"><span class="Apple-converted-space">            </span>});</p>
+<p class="p1"><span class="Apple-converted-space">    </span>};</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">    </span>function initDefaultCanvas() {</p>
+<p class="p1"><span class="Apple-converted-space">        </span>canvas.width = 1100; canvas.height = 650;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>canvas.style.width = "1100px"; canvas.style.height = "650px";</p>
+<p class="p1"><span class="Apple-converted-space">        </span>ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, canvas.width, canvas.height);</p>
+<p class="p1"><span class="Apple-converted-space">        </span>ctx.fillStyle = "#2c3e50"; ctx.font = "bold 22px sans-serif"; ctx.textAlign = "center";</p>
+<p class="p1"><span class="Apple-converted-space">        </span>ctx.fillText("歡迎使用！請還原您的巡檢專案檔 (.json)", canvas.width / 2, canvas.height / 2);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>}</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">    </span>function restoreProjectFromDataStr(dataStr, callback) {</p>
+<p class="p1"><span class="Apple-converted-space">        </span>try {</p>
+<p class="p1"><span class="Apple-converted-space">            </span>const bundle = JSON.parse(dataStr);</p>
+<p class="p1"><span class="Apple-converted-space">            </span>if (bundle.mapImage) {</p>
+<p class="p1"><span class="Apple-converted-space">                </span>currentMapDataUrl = bundle.mapImage;</p>
+<p class="p1"><span class="Apple-converted-space">                </span>canvas.width = bundle.canvasW; canvas.height = bundle.canvasH;</p>
+<p class="p1"><span class="Apple-converted-space">                </span>canvas.style.width = bundle.canvasStyleW; canvas.style.height = bundle.canvasStyleH;</p>
+<p class="p1"><span class="Apple-converted-space">                </span>const img = new Image();</p>
+<p class="p1"><span class="Apple-converted-space">                </span>img.onload = function() {</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.drawImage(img, 0, 0);</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>points = bundle.savedPoints || [];</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>evaluateAllPointsExpiry(); renderPoints();</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>if(callback) callback();</p>
+<p class="p1"><span class="Apple-converted-space">                </span>};</p>
+<p class="p1"><span class="Apple-converted-space">                </span>img.src = bundle.mapImage;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>}</p>
+<p class="p1"><span class="Apple-converted-space">        </span>} catch(e) { console.error(e); }</p>
+<p class="p1"><span class="Apple-converted-space">    </span>}</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">    </span>// 載入新底圖</p>
+<p class="p1"><span class="Apple-converted-space">    </span>document.getElementById('upload').onchange = function(e) {</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const file = e.target.files[0]; if(!file) return;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>showStatus("⏳ 圖面轉譯中...");</p>
+<p class="p1"><span class="Apple-converted-space">        </span>if (file.type === "application/pdf") {</p>
+<p class="p1"><span class="Apple-converted-space">            </span>const reader = new FileReader();</p>
+<p class="p1"><span class="Apple-converted-space">            </span>reader.onload = function() {</p>
+<p class="p1"><span class="Apple-converted-space">                </span>const typedarray = new Uint8Array(this.result);</p>
+<p class="p1"><span class="Apple-converted-space">                </span>pdfjsLib.getDocument({ data: typedarray }).promise.then(function(pdf) {</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>pdf.getPage(1).then(function(page) {</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>const renderScale = 3.0;</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>const viewportPage = page.getViewport({ scale: renderScale });</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>canvas.width = viewportPage.width; canvas.height = viewportPage.height;</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>canvas.style.width = (viewportPage.width / renderScale) + "px"; canvas.style.height = (viewportPage.height / renderScale) + "px";</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>const renderContext = { canvasContext: ctx, viewport: viewportPage };</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>page.render(renderContext).promise.then(() =&gt; {</p>
+<p class="p1"><span class="Apple-converted-space">                            </span>currentMapDataUrl = canvas.toDataURL('image/jpeg', 0.8);</p>
+<p class="p1"><span class="Apple-converted-space">                            </span>points = []; renderPoints(); showStatus("✅ PDF 底圖載入完成");</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>});</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>});</p>
+<p class="p1"><span class="Apple-converted-space">                </span>});</p>
+<p class="p1"><span class="Apple-converted-space">            </span>};</p>
+<p class="p1"><span class="Apple-converted-space">            </span>reader.readAsArrayBuffer(file);</p>
+<p class="p1"><span class="Apple-converted-space">        </span>} else {</p>
+<p class="p1"><span class="Apple-converted-space">            </span>const reader = new FileReader();</p>
+<p class="p1"><span class="Apple-converted-space">            </span>reader.onload = (event) =&gt; {<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">                </span>const img = new Image();</p>
+<p class="p1"><span class="Apple-converted-space">                </span>img.onload = function() {</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>canvas.width = img.width; canvas.height = img.height;</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>canvas.style.width = img.width + "px"; canvas.style.height = img.height + "px";</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>ctx.drawImage(img, 0, 0); currentMapDataUrl = canvas.toDataURL('image/jpeg', 0.8);</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>points = []; renderPoints(); showStatus("✅ 圖檔載入完成");</p>
+<p class="p1"><span class="Apple-converted-space">                </span>};</p>
+<p class="p1"><span class="Apple-converted-space">                </span>img.src = event.target.result;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>};</p>
+<p class="p1"><span class="Apple-converted-space">            </span>reader.readAsDataURL(file);</p>
+<p class="p1"><span class="Apple-converted-space">        </span>}</p>
+<p class="p1"><span class="Apple-converted-space">    </span>};</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">    </span>function exportProjectJSON() {</p>
+<p class="p1"><span class="Apple-converted-space">        </span>if (!currentMapDataUrl) { alert("無圖面無法儲存！"); return; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>let defaultName = "project"; // 固定命名為 project 方便網路託管</p>
+<p class="p1"><span class="Apple-converted-space">        </span>let userFileName = prompt("請確認專案儲存名稱（若要託管至 GitHub，請維持 project）：", defaultName);</p>
+<p class="p1"><span class="Apple-converted-space">        </span>if (!userFileName) return;</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">        </span>const bundleProject = {</p>
+<p class="p1"><span class="Apple-converted-space">            </span>mapImage: currentMapDataUrl,</p>
+<p class="p1"><span class="Apple-converted-space">            </span>canvasStyleW: canvas.style.width, canvasStyleH: canvas.style.height,</p>
+<p class="p1"><span class="Apple-converted-space">            </span>canvasW: canvas.width, canvasH: canvas.height,</p>
+<p class="p1"><span class="Apple-converted-space">            </span>savedPoints: points</p>
+<p class="p1"><span class="Apple-converted-space">        </span>};</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(bundleProject));</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const downloadAnchor = document.createElement('a');</p>
+<p class="p1"><span class="Apple-converted-space">        </span>downloadAnchor.setAttribute("href", dataStr); downloadAnchor.setAttribute("download", userFileName.trim() + ".json");</p>
+<p class="p1"><span class="Apple-converted-space">        </span>document.body.appendChild(downloadAnchor); downloadAnchor.click(); downloadAnchor.remove();</p>
+<p class="p1"><span class="Apple-converted-space">    </span>}</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">    </span>document.getElementById('load-project').onchange = function(e) {</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const file = e.target.files[0]; if (!file) return;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>showStatus("⏳ 正在還原專案點位圖層...");</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const reader = new FileReader();</p>
+<p class="p1"><span class="Apple-converted-space">        </span>reader.onload = function(evt) {</p>
+<p class="p1"><span class="Apple-converted-space">            </span>try {</p>
+<p class="p1"><span class="Apple-converted-space">                </span>restoreProjectFromDataStr(evt.target.result, () =&gt; {</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>localStorage.setItem('current_ehs_project', evt.target.result);</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>showStatus("📂 專案完全復原！共有 " + points.length + " 個定位標示點");</p>
+<p class="p1"><span class="Apple-converted-space">                </span>});</p>
+<p class="p1"><span class="Apple-converted-space">            </span>} catch (err) { alert("讀取失敗，請確認檔案格式。"); }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>};</p>
+<p class="p1"><span class="Apple-converted-space">        </span>reader.readAsText(file);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>};</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">    </span>viewport.onwheel = function(e) {</p>
+<p class="p1"><span class="Apple-converted-space">        </span>e.preventDefault();</p>
+<p class="p1"><span class="Apple-converted-space">        </span>if (e.ctrlKey) { mapX += (e.deltaY &lt; 0 ? 55 : -55); updateTransform(); return; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const rect = viewport.getBoundingClientRect();</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const mouseX = e.clientX - rect.left, mouseY = e.clientY - rect.top;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const currentX = (mouseX - mapX) / mapScale, currentY = (mouseY - mapY) / mapScale;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>mapScale = Math.min(Math.max(0.1, mapScale * (e.deltaY &lt; 0 ? 1.1 : 1/1.1)), 10);<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">        </span>mapX = mouseX - currentX * mapScale; mapY = mouseY - currentY * mapScale;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>updateTransform();</p>
+<p class="p1"><span class="Apple-converted-space">    </span>};</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">    </span>function toggleAddMode(type) {</p>
+<p class="p1"><span class="Apple-converted-space">        </span>if (isAddMode &amp;&amp; addType === type) {</p>
+<p class="p1"><span class="Apple-converted-space">            </span>isAddMode = false; addType = '';</p>
+<p class="p1"><span class="Apple-converted-space">            </span>document.getElementById('add-ext-btn').classList.remove('active');</p>
+<p class="p1"><span class="Apple-converted-space">            </span>document.getElementById('add-hyd-btn').classList.remove('active');</p>
+<p class="p1"><span class="Apple-converted-space">            </span>viewport.classList.remove('add-mode-active');</p>
+<p class="p1"><span class="Apple-converted-space">        </span>} else {</p>
+<p class="p1"><span class="Apple-converted-space">            </span>isAddMode = true; addType = type;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>document.getElementById('add-ext-btn').classList.toggle('active', type === 'ext');</p>
+<p class="p1"><span class="Apple-converted-space">            </span>document.getElementById('add-hyd-btn').classList.toggle('active', type === 'hyd');</p>
+<p class="p1"><span class="Apple-converted-space">            </span>viewport.classList.add('add-mode-active');</p>
+<p class="p1"><span class="Apple-converted-space">        </span>}</p>
+<p class="p1"><span class="Apple-converted-space">    </span>}</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">    </span>document.getElementById('capture-area').onmousedown = function(e) {</p>
+<p class="p1"><span class="Apple-converted-space">        </span>if (!isAddMode || e.button !== 0 || isDraggingIcon || isPanning || e.ctrlKey) return;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const rect = canvas.getBoundingClientRect();</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const canvasW = parseFloat(canvas.style.width) || canvas.width;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const canvasH = parseFloat(canvas.style.height) || canvas.height;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const clickX = (e.clientX - rect.left) / mapScale;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const clickY = (e.clientY - rect.top) / mapScale;</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">        </span>if (addType === 'ext') {</p>
+<p class="p1"><span class="Apple-converted-space">            </span>points.push({<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">                </span>id: Date.now(), kind: 'ext', pctX: clickX / canvasW, pctY: clickY / canvasH,<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">                </span>name: `滅火器-${points.length+1}`, type: '10P 乾粉', mfgDate: '',</p>
+<p class="p1"><span class="Apple-converted-space">                </span>inspected: false, done: false, results: {}, notes: {}<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">            </span>});</p>
+<p class="p1"><span class="Apple-converted-space">        </span>} else if (addType === 'hyd') {</p>
+<p class="p1"><span class="Apple-converted-space">            </span>points.push({</p>
+<p class="p1"><span class="Apple-converted-space">                </span>id: Date.now(), kind: 'hyd', pctX: clickX / canvasW, pctY: clickY / canvasH,</p>
+<p class="p1"><span class="Apple-converted-space">                </span>name: `室內消防栓-${points.length+1}`, hoseCount: '1', hoseDates: [''],</p>
+<p class="p1"><span class="Apple-converted-space">                </span>inspected: false, done: false, results: {}, notes: {}</p>
+<p class="p1"><span class="Apple-converted-space">            </span>});</p>
+<p class="p1"><span class="Apple-converted-space">        </span>}</p>
+<p class="p1"><span class="Apple-converted-space">        </span>isAddMode = false; addType = '';</p>
+<p class="p1"><span class="Apple-converted-space">        </span>document.getElementById('add-ext-btn').classList.remove('active');</p>
+<p class="p1"><span class="Apple-converted-space">        </span>document.getElementById('add-hyd-btn').classList.remove('active');</p>
+<p class="p1"><span class="Apple-converted-space">        </span>viewport.classList.remove('add-mode-active');</p>
+<p class="p1"><span class="Apple-converted-space">        </span>evaluateAllPointsExpiry(); renderPoints();</p>
+<p class="p1"><span class="Apple-converted-space">        </span>saveToLocalCache();</p>
+<p class="p1"><span class="Apple-converted-space">    </span>};</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">    </span>function renderPoints() {</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const area = document.getElementById('capture-area');</p>
+<p class="p1"><span class="Apple-converted-space">        </span>document.querySelectorAll('.ext-wrapper').forEach(el =&gt; el.remove());</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const canvasW = parseFloat(canvas.style.width) || canvas.width;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const canvasH = parseFloat(canvas.style.height) || canvas.height;</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">        </span>points.forEach(p =&gt; {</p>
+<p class="p1"><span class="Apple-converted-space">            </span>const wrapper = document.createElement('div');</p>
+<p class="p1"><span class="Apple-converted-space">            </span>wrapper.className = `ext-wrapper`;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>wrapper.style.left = (p.pctX * canvasW) + 'px'; wrapper.style.top = (p.pctY * canvasH) + 'px';</p>
+<p class="p2"><span class="Apple-converted-space">            </span></p>
+<p class="p1"><span class="Apple-converted-space">            </span>let statusHTML = '';</p>
+<p class="p1"><span class="Apple-converted-space">            </span>if (p.kind === 'ext') {</p>
+<p class="p1"><span class="Apple-converted-space">                </span>let expiry = calculateExpiryStatus(p.mfgDate, 3);</p>
+<p class="p1"><span class="Apple-converted-space">                </span>if (expiry.status === 'expired') statusHTML = `&lt;div class="status-badge status-fail"&gt;【滅火器過期】&lt;/div&gt;`;</p>
+<p class="p1"><span class="Apple-converted-space">                </span>else if (p.inspected) statusHTML = p.done ? `&lt;div class="status-badge status-ok"&gt;【合格】&lt;/div&gt;` : `&lt;div class="status-badge status-fail"&gt;【不合格】&lt;/div&gt;`;</p>
+<p class="p1"><span class="Apple-converted-space">                </span>wrapper.innerHTML = `${statusHTML}${extSvgString}&lt;div class="info-label"&gt;${p.name}&lt;br&gt;${p.type}&lt;/div&gt;`;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>} else {</p>
+<p class="p1"><span class="Apple-converted-space">                </span>let hasExpiredHose = false;</p>
+<p class="p1"><span class="Apple-converted-space">                </span>if(p.hoseDates &amp;&amp; p.hoseDates.length &gt; 0) {</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>p.hoseDates.forEach(d =&gt; {</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>if(calculateExpiryStatus(d, 10).status === 'expired') hasExpiredHose = true;</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>});</p>
+<p class="p1"><span class="Apple-converted-space">                </span>}</p>
+<p class="p1"><span class="Apple-converted-space">                </span>if (hasExpiredHose) statusHTML = `&lt;div class="status-badge status-fail"&gt;【水帶逾期】&lt;/div&gt;`;</p>
+<p class="p1"><span class="Apple-converted-space">                </span>else if (p.inspected) statusHTML = p.done ? `&lt;div class="status-badge status-ok"&gt;【合格】&lt;/div&gt;` : `&lt;div class="status-badge status-fail"&gt;【不合格】&lt;/div&gt;`;</p>
+<p class="p2"><span class="Apple-converted-space">                </span></p>
+<p class="p1"><span class="Apple-converted-space">                </span>wrapper.innerHTML = `${statusHTML}${hydSvgString}&lt;div class="info-label" style="background:rgba(186, 22, 22, 0.95); border:1px solid #ff7979;"&gt;${p.name}&lt;br&gt;水帶:${p.hoseCount}條&lt;/div&gt;`;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>}</p>
+<p class="p2"><span class="Apple-converted-space">            </span></p>
+<p class="p1"><span class="Apple-converted-space">            </span>wrapper.onmousedown = function(e) {</p>
+<p class="p1"><span class="Apple-converted-space">                </span>if (e.button !== 0 || e.ctrlKey || isAddMode) return;<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">                </span>e.stopPropagation(); isDraggingIcon = false;</p>
+<p class="p1"><span class="Apple-converted-space">                </span>let startClientX = e.clientX, startClientY = e.clientY;</p>
+<p class="p1"><span class="Apple-converted-space">                </span>let startLeft = p.pctX * canvasW, startTop = p.pctY * canvasH;</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">                </span>function onMouseMove(moveEv) {</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>isDraggingIcon = true;</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>let currentLeft = startLeft + (moveEv.clientX - startClientX) / mapScale;</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>let currentTop = startTop + (moveEv.clientY - startClientY) / mapScale;</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>p.pctX = currentLeft / canvasW; p.pctY = currentTop / canvasH;</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>wrapper.style.left = currentLeft + 'px'; wrapper.style.top = currentTop + 'px';</p>
+<p class="p1"><span class="Apple-converted-space">                </span>}</p>
+<p class="p1"><span class="Apple-converted-space">                </span>document.addEventListener('mousemove', onMouseMove);</p>
+<p class="p1"><span class="Apple-converted-space">                </span>document.onmouseup = function() {</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>document.removeEventListener('mousemove', onMouseMove);</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>if(!isDraggingIcon) openModal(p); else { renderPoints(); saveToLocalCache(); }</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>document.onmouseup = null; setTimeout(() =&gt; isDraggingIcon = false, 80);</p>
+<p class="p1"><span class="Apple-converted-space">                </span>};</p>
+<p class="p1"><span class="Apple-converted-space">            </span>};</p>
+<p class="p1"><span class="Apple-converted-space">            </span>area.appendChild(wrapper);</p>
+<p class="p1"><span class="Apple-converted-space">        </span>});</p>
+<p class="p1"><span class="Apple-converted-space">    </span>}</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">    </span>function generateHoseDateInputs() {</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const count = parseInt(document.getElementById('m-hyd-count').value) || 1;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const box = document.getElementById('hose-dates-box');</p>
+<p class="p1"><span class="Apple-converted-space">        </span>box.innerHTML = '';</p>
+<p class="p1"><span class="Apple-converted-space">        </span>let savedDates = (currentPoint &amp;&amp; currentPoint.hoseDates) ? currentPoint.hoseDates : [];</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">        </span>for(let i = 0; i &lt; count; i++) {</p>
+<p class="p1"><span class="Apple-converted-space">            </span>const itemValue = savedDates[i] || '';</p>
+<p class="p1"><span class="Apple-converted-space">            </span>const div = document.createElement('div'); div.className = 'hose-date-item';</p>
+<p class="p1"><span class="Apple-converted-space">            </span>div.innerHTML = `&lt;span&gt;第 ${i+1} 條生產日:&lt;/span&gt;&lt;input type="date" class="m-hyd-date-input" data-index="${i}" value="${itemValue}" onchange="checkHydHoseExpiryInModal()"&gt;`;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>box.appendChild(div);</p>
+<p class="p1"><span class="Apple-converted-space">        </span>}</p>
+<p class="p1"><span class="Apple-converted-space">        </span>checkHydHoseExpiryInModal();</p>
+<p class="p1"><span class="Apple-converted-space">    </span>}</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">    </span>const extCheckItems = ["本體容器", "壓把", "安全插銷", "壓力計", "皮管", "鏽蝕"];</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const hydCheckItems = ["箱體內乾淨", "箱體外無阻擋物", "水瞄狀況", "警示燈為恆亮", "箱體漏水"];</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">    </span>function openModal(p) {</p>
+<p class="p1"><span class="Apple-converted-space">        </span>currentPoint = p;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>document.getElementById('m-name').value = p.name;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const listArea = document.getElementById('check-list-area'); listArea.innerHTML = '';<span class="Apple-converted-space"> </span></p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">        </span>if (p.kind === 'ext') {</p>
+<p class="p1"><span class="Apple-converted-space">            </span>document.getElementById('modal-title').innerText = "🧯 滅火器資料與巡檢";</p>
+<p class="p1"><span class="Apple-converted-space">            </span>document.getElementById('ext-specs-area').style.display = 'block';</p>
+<p class="p1"><span class="Apple-converted-space">            </span>document.getElementById('hyd-specs-area').style.display = 'none';</p>
+<p class="p1"><span class="Apple-converted-space">            </span>document.getElementById('m-type').value = p.type;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>document.getElementById('m-mfg-date').value = p.mfgDate || '';</p>
+<p class="p1"><span class="Apple-converted-space">            </span>extCheckItems.forEach((item, idx) =&gt; { addCheckRow(listArea, item, idx+1, p); });</p>
+<p class="p1"><span class="Apple-converted-space">            </span>listArea.innerHTML += `&lt;div class="check-row" data-item="效期"&gt;&lt;div class="check-header"&gt;&lt;span&gt;7. 是否過期(自動對照)&lt;/span&gt;&lt;div class="ox-group"&gt;&lt;button class="btn-o" id="auto-expiry-o" disabled&gt;O&lt;/button&gt;&lt;button class="btn-x" id="auto-expiry-x" disabled&gt;X&lt;/button&gt;&lt;/div&gt;&lt;/div&gt;&lt;input type="text" id="auto-expiry-note" class="fail-input" readonly style="background:#f8f9fa;"&gt;&lt;/div&gt;`;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>checkExpiryInModal();</p>
+<p class="p1"><span class="Apple-converted-space">        </span>} else {</p>
+<p class="p1"><span class="Apple-converted-space">            </span>document.getElementById('modal-title').innerText = "🏠 室內消防栓箱巡檢";</p>
+<p class="p1"><span class="Apple-converted-space">            </span>document.getElementById('ext-specs-area').style.display = 'none';</p>
+<p class="p1"><span class="Apple-converted-space">            </span>document.getElementById('hyd-specs-area').style.display = 'block';</p>
+<p class="p1"><span class="Apple-converted-space">            </span>document.getElementById('m-hyd-count').value = p.hoseCount || '1';</p>
+<p class="p1"><span class="Apple-converted-space">            </span>generateHoseDateInputs();</p>
+<p class="p1"><span class="Apple-converted-space">            </span>hydCheckItems.forEach((item, idx) =&gt; { addCheckRow(listArea, item, idx+1, p); });</p>
+<p class="p1"><span class="Apple-converted-space">        </span>}</p>
+<p class="p1"><span class="Apple-converted-space">        </span>document.getElementById('modal').style.display = 'block'; document.getElementById('overlay').style.display = 'block';</p>
+<p class="p1"><span class="Apple-converted-space">    </span>}</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">    </span>function addCheckRow(targetEl, item, order, p) {</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const res = p.results[item] || ''; const note = p.notes[item] || '';</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const html = `</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;div class="check-row" data-item="${item}"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                </span>&lt;div class="check-header"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>&lt;span&gt;${order}. ${item}&lt;/span&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>&lt;div class="ox-group"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>&lt;button class="btn-o ${res === 'O' ? 'active-o' : ''}" onclick="setOX(this, 'O')"&gt;O&lt;/button&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>&lt;button class="btn-x ${res === 'X' ? 'active-x' : ''}" onclick="setOX(this, 'X')"&gt;X&lt;/button&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                </span>&lt;input type="text" class="fail-input" style="display:${res === 'X' ? 'block' : 'none'};" value="${note}" placeholder="不合格原因描述..."&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;/div&gt;`;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>targetEl.innerHTML += html;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>}</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">    </span>function saveCheck() {</p>
+<p class="p1"><span class="Apple-converted-space">        </span>currentPoint.name = document.getElementById('m-name').value || "未命名位置";</p>
+<p class="p1"><span class="Apple-converted-space">        </span>let allOk = true, anyMarked = false;</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">        </span>if (currentPoint.kind === 'ext') {</p>
+<p class="p1"><span class="Apple-converted-space">            </span>currentPoint.type = document.getElementById('m-type').value;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>currentPoint.mfgDate = document.getElementById('m-mfg-date').value;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>document.querySelectorAll('.check-row').forEach(row =&gt; {</p>
+<p class="p1"><span class="Apple-converted-space">                </span>const item = row.getAttribute('data-item'); if(item === '效期') return;</p>
+<p class="p1"><span class="Apple-converted-space">                </span>const isO = row.querySelector('.btn-o').classList.contains('active-o');</p>
+<p class="p1"><span class="Apple-converted-space">                </span>const isX = row.querySelector('.btn-x').classList.contains('active-x');</p>
+<p class="p1"><span class="Apple-converted-space">                </span>if(isO || isX) anyMarked = true;</p>
+<p class="p1"><span class="Apple-converted-space">                </span>currentPoint.results[item] = isO ? 'O' : (isX ? 'X' : '');</p>
+<p class="p1"><span class="Apple-converted-space">                </span>currentPoint.notes[item] = isX ? row.querySelector('.fail-input').value : '';</p>
+<p class="p1"><span class="Apple-converted-space">                </span>if(!isO) allOk = false;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>});</p>
+<p class="p1"><span class="Apple-converted-space">            </span>if (calculateExpiryStatus(currentPoint.mfgDate, 3).status === 'expired') { allOk = false; anyMarked = true; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>} else {</p>
+<p class="p1"><span class="Apple-converted-space">            </span>currentPoint.hoseCount = document.getElementById('m-hyd-count').value;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>let dates = [];</p>
+<p class="p1"><span class="Apple-converted-space">            </span>document.querySelectorAll('.m-hyd-date-input').forEach(input =&gt; { dates.push(input.value); });</p>
+<p class="p1"><span class="Apple-converted-space">            </span>currentPoint.hoseDates = dates;</p>
+<p class="p2"><span class="Apple-converted-space">            </span></p>
+<p class="p1"><span class="Apple-converted-space">            </span>let hasExpiredHose = false;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>dates.forEach(d =&gt; {</p>
+<p class="p1"><span class="Apple-converted-space">                </span>if(d) { anyMarked = true; if(calculateExpiryStatus(d, 10).status === 'expired') hasExpiredHose = true; }</p>
+<p class="p1"><span class="Apple-converted-space">            </span>});</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">            </span>document.querySelectorAll('.check-row').forEach(row =&gt; {</p>
+<p class="p1"><span class="Apple-converted-space">                </span>const item = row.getAttribute('data-item');</p>
+<p class="p1"><span class="Apple-converted-space">                </span>const isO = row.querySelector('.btn-o').classList.contains('active-o');</p>
+<p class="p1"><span class="Apple-converted-space">                </span>const isX = row.querySelector('.btn-x').classList.contains('active-x');</p>
+<p class="p1"><span class="Apple-converted-space">                </span>if(isO || isX) anyMarked = true;</p>
+<p class="p1"><span class="Apple-converted-space">                </span>currentPoint.results[item] = isO ? 'O' : (isX ? 'X' : '');</p>
+<p class="p1"><span class="Apple-converted-space">                </span>currentPoint.notes[item] = isX ? row.querySelector('.fail-input').value : '';</p>
+<p class="p1"><span class="Apple-converted-space">                </span>if(!isO) allOk = false;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>});</p>
+<p class="p1"><span class="Apple-converted-space">            </span>if(hasExpiredHose) allOk = false;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>}</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">        </span>currentPoint.inspected = anyMarked; currentPoint.done = allOk;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>closeModal();</p>
+<p class="p1"><span class="Apple-converted-space">        </span>saveToLocalCache();</p>
+<p class="p1"><span class="Apple-converted-space">    </span>}</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">    </span>function saveToLocalCache() {</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const bundleProject = {</p>
+<p class="p1"><span class="Apple-converted-space">            </span>mapImage: currentMapDataUrl,</p>
+<p class="p1"><span class="Apple-converted-space">            </span>canvasStyleW: canvas.style.width, canvasStyleH: canvas.style.height,</p>
+<p class="p1"><span class="Apple-converted-space">            </span>canvasW: canvas.width, canvasH: canvas.height,</p>
+<p class="p1"><span class="Apple-converted-space">            </span>savedPoints: points</p>
+<p class="p1"><span class="Apple-converted-space">        </span>};</p>
+<p class="p1"><span class="Apple-converted-space">        </span>localStorage.setItem('current_ehs_project', JSON.stringify(bundleProject));</p>
+<p class="p1"><span class="Apple-converted-space">    </span>}</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">    </span>function calculateExpiryStatus(dateString, yearsLimit) {</p>
+<p class="p1"><span class="Apple-converted-space">        </span>if (!dateString) return { status: 'normal' };</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const today = new Date(); today.setHours(0,0,0,0);</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const mfgDate = new Date(dateString); mfgDate.setHours(0,0,0,0);</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const expiryDate = new Date(mfgDate); expiryDate.setFullYear(expiryDate.getFullYear() + yearsLimit);</p>
+<p class="p1"><span class="Apple-converted-space">        </span>if (today &gt;= expiryDate) return { status: 'expired' };</p>
+<p class="p1"><span class="Apple-converted-space">        </span>return { status: 'normal' };</p>
+<p class="p1"><span class="Apple-converted-space">    </span>}</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">    </span>function checkHydHoseExpiryInModal() {</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const msgDiv = document.getElementById('hyd-expiry-msg'); if(!msgDiv) return;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>let isExpired = false;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>document.querySelectorAll('.m-hyd-date-input').forEach(input =&gt; {</p>
+<p class="p1"><span class="Apple-converted-space">            </span>if(input.value &amp;&amp; calculateExpiryStatus(input.value, 10).status === 'expired') isExpired = true;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>});</p>
+<p class="p1"><span class="Apple-converted-space">        </span>if(isExpired) { msgDiv.innerText = "❌ 警告：內含已超過10年法定年限之水帶！"; msgDiv.style.color = "#e74c3c"; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>else { msgDiv.innerText = "<span class="Apple-converted-space">  </span>水帶效期均合格"; msgDiv.style.color = "#27ae60"; }</p>
+<p class="p1"><span class="Apple-converted-space">    </span>}</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">    </span>function evaluateAllPointsExpiry() {</p>
+<p class="p1"><span class="Apple-converted-space">        </span>points.forEach(p =&gt; {</p>
+<p class="p1"><span class="Apple-converted-space">            </span>if (p.kind === 'ext' &amp;&amp; p.mfgDate) {</p>
+<p class="p1"><span class="Apple-converted-space">                </span>if (calculateExpiryStatus(p.mfgDate, 3).status === 'expired') { p.results['效期'] = 'X'; p.inspected = true; p.done = false; }</p>
+<p class="p1"><span class="Apple-converted-space">            </span>} else if (p.kind === 'hyd' &amp;&amp; p.hoseDates) {</p>
+<p class="p1"><span class="Apple-converted-space">                </span>let expired = false;</p>
+<p class="p1"><span class="Apple-converted-space">                </span>p.hoseDates.forEach(d =&gt; { if(calculateExpiryStatus(d, 10).status === 'expired') expired = true; });</p>
+<p class="p1"><span class="Apple-converted-space">                </span>if(expired) { p.inspected = true; p.done = false; }</p>
+<p class="p1"><span class="Apple-converted-space">            </span>}</p>
+<p class="p1"><span class="Apple-converted-space">        </span>});</p>
+<p class="p1"><span class="Apple-converted-space">    </span>}</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">    </span>function checkExpiryInModal() {</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const dateVal = document.getElementById('m-mfg-date').value;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const msgDiv = document.getElementById('modal-expiry-msg');</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const oBtn = document.getElementById('auto-expiry-o'); const xBtn = document.getElementById('auto-expiry-x');</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const noteInput = document.getElementById('auto-expiry-note'); if(!oBtn) return;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>oBtn.classList.remove('active-o'); xBtn.classList.remove('active-x'); noteInput.style.display = 'none';</p>
+<p class="p1"><span class="Apple-converted-space">        </span>if (!dateVal) return;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const res = calculateExpiryStatus(dateVal, 3);</p>
+<p class="p1"><span class="Apple-converted-space">        </span>if (res.status === 'expired') {</p>
+<p class="p1"><span class="Apple-converted-space">            </span>msgDiv.innerText = "❌ 已超過 3 年時效！"; msgDiv.style.color = "#e74c3c";</p>
+<p class="p1"><span class="Apple-converted-space">            </span>xBtn.classList.add('active-x'); noteInput.style.display = 'block'; noteInput.value = "自動判定：已過3年法定年限";</p>
+<p class="p1"><span class="Apple-converted-space">        </span>} else { msgDiv.innerText = " 效期安全"; msgDiv.style.color = "#27ae60"; oBtn.classList.add('active-o'); }</p>
+<p class="p1"><span class="Apple-converted-space">    </span>}</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">    </span>// 🎯 檢查網址參數並定位彈窗 (QR Code 連動)</p>
+<p class="p1"><span class="Apple-converted-space">    </span>function checkUrlParamsForCheck() {</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const urlParams = new URLSearchParams(window.location.search);</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const pointId = urlParams.get('pointId');</p>
+<p class="p1"><span class="Apple-converted-space">        </span>if (pointId &amp;&amp; points.length &gt; 0) {</p>
+<p class="p1"><span class="Apple-converted-space">            </span>const target = points.find(p =&gt; p.id == pointId);</p>
+<p class="p1"><span class="Apple-converted-space">            </span>if (target) {</p>
+<p class="p1"><span class="Apple-converted-space">                </span>// 自動平移聚焦，並彈出該設施巡檢窗</p>
+<p class="p1"><span class="Apple-converted-space">                </span>setTimeout(() =&gt; { openModal(target); focusOnPoint(target); }, 600);</p>
+<p class="p1"><span class="Apple-converted-space">            </span>} else {</p>
+<p class="p1"><span class="Apple-converted-space">                </span>alert("⚠️ 找不到該 QR Code 對應的消防設施，請確認專案檔是否為最新版本。");</p>
+<p class="p1"><span class="Apple-converted-space">            </span>}</p>
+<p class="p1"><span class="Apple-converted-space">        </span>}</p>
+<p class="p1"><span class="Apple-converted-space">    </span>}</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">    </span>// 聚焦定位畫面中央</p>
+<p class="p1"><span class="Apple-converted-space">    </span>function focusOnPoint(p) {</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const canvasW = parseFloat(canvas.style.width) || canvas.width;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const canvasH = parseFloat(canvas.style.height) || canvas.height;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const pX = p.pctX * canvasW; const pY = p.pctY * canvasH;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>mapScale = 1.5;<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">        </span>mapX = (viewport.clientWidth / 2) - (pX * mapScale);</p>
+<p class="p1"><span class="Apple-converted-space">        </span>mapY = (viewport.clientHeight / 2) - (pY * mapScale);</p>
+<p class="p1"><span class="Apple-converted-space">        </span>updateTransform();</p>
+<p class="p1"><span class="Apple-converted-space">    </span>}</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">    </span>viewport.oncontextmenu = (e) =&gt; e.preventDefault();<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">    </span>viewport.onmousedown = function(e) {</p>
+<p class="p1"><span class="Apple-converted-space">        </span>if (isAddMode) return;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>if (e.button === 2 || e.button === 1 || (e.button === 0 &amp;&amp; e.ctrlKey)) {<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">            </span>isPanning = true; startX = e.clientX - mapX; startY = e.clientY - mapY; e.preventDefault();</p>
+<p class="p1"><span class="Apple-converted-space">        </span>}</p>
+<p class="p1"><span class="Apple-converted-space">    </span>};</p>
+<p class="p1"><span class="Apple-converted-space">    </span>document.addEventListener('mousemove', function(e) { if (!isPanning) return; mapX = e.clientX - startX; mapY = e.clientY - startY; updateTransform(); });</p>
+<p class="p1"><span class="Apple-converted-space">    </span>document.addEventListener('mouseup', function() { if (isPanning) isPanning = false; });</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">    </span>function updateTransform() { container.style.transform = `translate(${mapX}px, ${mapY}px) scale(${mapScale})`; }</p>
+<p class="p1"><span class="Apple-converted-space">    </span>function updateIconScale(val) { document.documentElement.style.setProperty('--ext-scale', val); document.getElementById('scale-val').innerText = Math.round(val * 100) + '%'; localStorage.setItem('icon_scale_v12', val); }</p>
+<p class="p1"><span class="Apple-converted-space">    </span>function setOX(btn, status) { const row = btn.closest('.check-row'); row.querySelectorAll('button').forEach(b =&gt; b.classList.remove('active-o', 'active-x')); btn.classList.add(status === 'O' ? 'active-o' : 'active-x'); row.querySelector('.fail-input').style.display = (status === 'X') ? 'block' : 'none'; }</p>
+<p class="p1"><span class="Apple-converted-space">    </span>function showStatus(text) { statusTxt.innerText = text; }</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">    </span>function exportJPG() {</p>
+<p class="p1"><span class="Apple-converted-space">        </span>showStatus("⏳ 正在產生超高解析度 JPG 圖面...");</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const oldScale = mapScale, oldX = mapX, oldY = mapY;<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">        </span>mapScale = 1; mapX = 0; mapY = 0; updateTransform();</p>
+<p class="p1"><span class="Apple-converted-space">        </span>setTimeout(() =&gt; {</p>
+<p class="p1"><span class="Apple-converted-space">            </span>html2canvas(document.getElementById('capture-area'), { useCORS: true, scale: 4, logging: false, imageTimeout: 0, backgroundColor: "#ffffff" }).then(canvasRes =&gt; {</p>
+<p class="p1"><span class="Apple-converted-space">                </span>const link = document.createElement('a'); link.download = '綜合消防設施巡檢圖_高解析.jpg'; link.href = canvasRes.toDataURL('image/jpeg', 0.95); link.click();</p>
+<p class="p1"><span class="Apple-converted-space">                </span>mapScale = oldScale; mapX = oldX; mapY = oldY; updateTransform();</p>
+<p class="p1"><span class="Apple-converted-space">                </span>showStatus("✅ 高解析度 JPG 導出成功！");</p>
+<p class="p1"><span class="Apple-converted-space">            </span>}).catch(err =&gt; { alert("高解析度渲染失敗。"); mapScale = oldScale; mapX = oldX; mapY = oldY; updateTransform(); });</p>
+<p class="p1"><span class="Apple-converted-space">        </span>}, 400);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>}</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">    </span>function exportPDF() {</p>
+<p class="p1"><span class="Apple-converted-space">        </span>showStatus("⏳ 正在封裝超高解析度 PDF...");</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const oldScale = mapScale, oldX = mapX, oldY = mapY;<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">        </span>mapScale = 1; mapX = 0; mapY = 0; updateTransform();</p>
+<p class="p1"><span class="Apple-converted-space">        </span>setTimeout(() =&gt; {</p>
+<p class="p1"><span class="Apple-converted-space">            </span>html2canvas(document.getElementById('capture-area'), { useCORS: true, scale: 4, logging: false, imageTimeout: 0 }).then(canvasRes =&gt; {</p>
+<p class="p1"><span class="Apple-converted-space">                </span>const { jsPDF } = window.jspdf;</p>
+<p class="p1"><span class="Apple-converted-space">                </span>const pdf = new jsPDF('l', 'px', [canvasRes.width / 4, canvasRes.height / 4]);</p>
+<p class="p1"><span class="Apple-converted-space">                </span>pdf.addImage(canvasRes.toDataURL('image/png'), 'PNG', 0, 0, canvasRes.width / 4, canvasRes.height / 4, undefined, 'FAST');</p>
+<p class="p1"><span class="Apple-converted-space">                </span>pdf.save("綜合消防設施巡檢圖_超高解析.pdf");</p>
+<p class="p1"><span class="Apple-converted-space">                </span>mapScale = oldScale; mapX = oldX; mapY = oldY; updateTransform();</p>
+<p class="p1"><span class="Apple-converted-space">                </span>showStatus("✅ 高解析度 PDF 導出成功！");</p>
+<p class="p1"><span class="Apple-converted-space">            </span>}).catch(err =&gt; { alert("高解析度 PDF 建立失敗。"); mapScale = oldScale; mapX = oldX; mapY = oldY; updateTransform(); });</p>
+<p class="p1"><span class="Apple-converted-space">        </span>}, 400);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>}</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">    </span>function exportExcel() {</p>
+<p class="p1"><span class="Apple-converted-space">        </span>let csv = "\ufeff設施種類,設備名稱,規格/水帶量,製造/水帶日期清單,巡檢狀態,異常摘要\n";</p>
+<p class="p1"><span class="Apple-converted-space">        </span>points.forEach(p =&gt; {</p>
+<p class="p1"><span class="Apple-converted-space">            </span>let typeStr = p.kind === 'ext' ? '滅火器' : '室內消防栓箱';</p>
+<p class="p1"><span class="Apple-converted-space">            </span>let specStr = p.kind === 'ext' ? p.type : `水帶 ${p.hoseCount} 條`;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>let dateStr = p.kind === 'ext' ? (p.mfgDate || '未填') : (p.hoseDates || []).join(' | ');</p>
+<p class="p1"><span class="Apple-converted-space">            </span>let stateStr = p.done ? '合格' : '不合格'; if(!p.inspected) stateStr = '未巡檢';</p>
+<p class="p1"><span class="Apple-converted-space">            </span>let notes = []; for(let key in p.notes) if(p.notes[key]) notes.push(`${key}:${p.notes[key]}`);</p>
+<p class="p1"><span class="Apple-converted-space">            </span>csv += `${typeStr},${p.name},${specStr},${dateStr},${stateStr},"${notes.join(' / ')}"\n`;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>});</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const blob = new Blob([csv], {type: 'text/csv'}); const a = document.createElement('a');</p>
+<p class="p1"><span class="Apple-converted-space">        </span>a.href = URL.createObjectURL(blob); a.download = '廠區綜合消防巡檢紀錄報表.csv'; a.click();</p>
+<p class="p1"><span class="Apple-converted-space">    </span>}</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">    </span>function deletePoint() { if(confirm('確定要刪除此標示？')) { points = points.filter(p =&gt; p.id !== currentPoint.id); closeModal(); } }</p>
+<p class="p1"><span class="Apple-converted-space">    </span>function closeModal() { document.getElementById('modal').style.display='none'; document.getElementById('overlay').style.display='none'; evaluateAllPointsExpiry(); renderPoints(); }</p>
+<p class="p1">&lt;/script&gt;</p>
+<p class="p1">&lt;/body&gt;</p>
+<p class="p1">&lt;/html&gt;</p>
 </body>
 </html>
